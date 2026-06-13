@@ -44,9 +44,12 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:hint="Message GAMA..."
+            android:textColorHint="#888888"
+            android:textColor="#111111"
             android:inputType="textMultiLine"
             android:maxLines="4"
-            android:padding="8dp" />
+            android:padding="8dp"
+            android:background="@android:color/transparent" />
 
         <Button
             android:id="@+id/sendButton"
