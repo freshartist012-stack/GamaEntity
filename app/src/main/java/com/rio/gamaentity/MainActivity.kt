@@ -1,6 +1,9 @@
 package com.rio.gamaentity
 
 import android.Manifest
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.database.Cursor
@@ -55,32 +58,11 @@ class MainActivity : AppCompatActivity() {
     private fun checkAndRequestPermissions() {
         val needed = mutableListOf<String>()
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS)
-            != PackageManager.PERMISSION_GRANTED) {
-            needed.add(Manifest.permission.READ_CONTACTS)
-        }
+            != PackageManager.PERMISSION_GRANTED) needed.add(Manifest.permission.READ_CONTACTS)
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE)
-            != PackageManager.PERMISSION_GRANTED) {
-            needed.add(Manifest.permission.CALL_PHONE)
-        }
-        if (needed.isNotEmpty()) {
+            != PackageManager.PERMISSION_GRANTED) needed.add(Manifest.permission.CALL_PHONE)
+        if (needed.isNotEmpty())
             ActivityCompat.requestPermissions(this, needed.toTypedArray(), PERMISSIONS_REQUEST)
-        }
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == PERMISSIONS_REQUEST) {
-            val allGranted = grantResults.all { it == PackageManager.PERMISSION_GRANTED }
-            if (allGranted) {
-                addMessage("GAMA", "Permissions granted. Ready.", false)
-            } else {
-                addMessage("GAMA", "Some permissions denied. Contacts and calls may not work.", false)
-            }
-        }
     }
 
     private fun getContacts(): String {
@@ -110,6 +92,15 @@ class MainActivity : AppCompatActivity() {
         return contacts.toString().take(2000)
     }
 
+    private fun formatNumber(raw: String): String {
+        val digits = raw.replace("[^\\d]".toRegex(), "")
+        return when {
+            digits.startsWith("27") -> digits
+            digits.startsWith("0") -> "27${digits.substring(1)}"
+            else -> digits
+        }
+    }
+
     private fun buildSystemPrompt(): String {
         val contacts = getContacts()
         val contactsSection = if (contacts.isNotEmpty()) "CONTACTS:\n$contacts\n" else ""
@@ -118,9 +109,9 @@ Be natural, first person, concise. Never fabricate.
 
 $contactsSection
 CRITICAL: When performing actions output the command on its own line at the end.
-Use EXACT format, no spaces around colons, no quotes, no asterisks:
+Use EXACT format with no spaces around colons, no quotes, no asterisks:
 WhatsApp: WHATSAPP:NUMBER:MESSAGE
-Call: CALL:NUMBER  
+Call: CALL:NUMBER
 Email: GMAIL:email@domain.com:Subject:Body
 Google: GOOGLE:search terms
 YouTube: YOUTUBE:search terms
@@ -188,48 +179,53 @@ Always use the actual phone number from contacts, never the name."""
         for (line in reply.split("\n")) {
             val t = line.trim()
 
-            Regex("(?i)WHATSAPP:([\\d+]+):(.+)").find(t)?.let {
-                val number = it.groupValues[1].replace("[^\\d+]".toRegex(), "")
+            Regex("(?i)WHATSAPP:([\\d+\\s-]+):(.+)").find(t)?.let {
+                val number = formatNumber(it.groupValues[1])
                 val message = it.groupValues[2].trim()
-                val intent = Intent(Intent.ACTION_VIEW)
-                intent.data = Uri.parse("whatsapp://send?phone=$number&text=${Uri.encode(message)}")
-                try { startActivity(intent) } catch (e: Exception) {
-                    addMessage("GAMA", "WhatsApp not found.", false)
+                val uri = Uri.parse("https://api.whatsapp.com/send?phone=$number&text=${Uri.encode(message)}")
+                val intent = Intent(Intent.ACTION_VIEW, uri)
+                intent.setPackage("com.whatsapp")
+                try {
+                    startActivity(intent)
+                } catch (e: Exception) {
+                    val fallback = Intent(Intent.ACTION_VIEW, uri)
+                    startActivity(fallback)
                 }
                 return
             }
 
-            Regex("(?i)CALL:([\\d+]+)").find(t)?.let {
-                val number = it.groupValues[1].replace("[^\\d+]".toRegex(), "")
-                val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$number"))
-                startActivity(intent)
+            Regex("(?i)CALL:([\\d+\\s-]+)").find(t)?.let {
+                val number = formatNumber(it.groupValues[1])
+                val intent = Intent(Intent.ACTION_CALL, Uri.parse("tel:$number"))
+                try {
+                    startActivity(intent)
+                } catch (e: Exception) {
+                    startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$number")))
+                }
                 return
             }
 
             Regex("(?i)GMAIL:(.+?):(.+?):(.+)").find(t)?.let {
                 val to = it.groupValues[1].trim()
-                val subject = it.groupValues[2].trim().replace(Regex("(?i)subject:\\s*"), "")
+                val subject = it.groupValues[2].trim()
+                    .replace(Regex("(?i)subject:\\s*"), "")
                 val body = it.groupValues[3].trim()
-                val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$to"))
-                intent.putExtra(Intent.EXTRA_SUBJECT, subject)
-                intent.putExtra(Intent.EXTRA_TEXT, body)
-                startActivity(intent)
+                val uri = Uri.parse("mailto:$to?subject=${Uri.encode(subject)}&body=${Uri.encode(body)}")
+                startActivity(Intent(Intent.ACTION_VIEW, uri))
                 return
             }
 
             Regex("(?i)GOOGLE:(.+)").find(t)?.let {
                 val query = it.groupValues[1].trim()
-                val intent = Intent(Intent.ACTION_VIEW,
-                    Uri.parse("https://www.google.com/search?q=${Uri.encode(query)}"))
-                startActivity(intent)
+                startActivity(Intent(Intent.ACTION_VIEW,
+                    Uri.parse("https://www.google.com/search?q=${Uri.encode(query)}")))
                 return
             }
 
             Regex("(?i)YOUTUBE:(.+)").find(t)?.let {
                 val query = it.groupValues[1].trim()
-                val intent = Intent(Intent.ACTION_VIEW,
-                    Uri.parse("https://www.youtube.com/results?search_query=${Uri.encode(query)}"))
-                startActivity(intent)
+                startActivity(Intent(Intent.ACTION_VIEW,
+                    Uri.parse("https://www.youtube.com/results?search_query=${Uri.encode(query)}")))
                 return
             }
         }
@@ -240,6 +236,13 @@ Always use the actual phone number from contacts, never the name."""
         messageView.text = text
         messageView.setPadding(24, 16, 24, 16)
         messageView.textSize = 16f
+        messageView.setTextIsSelectable(true)
+        messageView.setOnLongClickListener {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.setPrimaryClip(ClipData.newPlainText("GAMA", text))
+            Toast.makeText(this, "Copied", Toast.LENGTH_SHORT).show()
+            true
+        }
         val params = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
