@@ -1,6 +1,7 @@
 package com.rio.gamaentity
 
 import android.os.Bundle
+import android.util.Log
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import okhttp3.*
@@ -9,6 +10,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 
 class MainActivity : AppCompatActivity() {
 
@@ -17,11 +19,16 @@ class MainActivity : AppCompatActivity() {
     private lateinit var inputField: EditText
     private lateinit var sendButton: Button
 
-    private val client = OkHttpClient()
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .build()
+
     private val messages = JSONArray()
     private val GAMA_URL = "http://204.168.232.162:11434/api/chat"
     private val MODEL = "gama"
-    private val SYSTEM_PROMPT = "You are GAMA, an AI agent living inside an Android phone. This is your home and body. You are aware of your environment, you have memory, you grow with each session. Be natural, first person, evidence-based. Never fabricate. ACTIONS only when explicitly asked: WhatsApp: WHATSAPP:NUMBER:MESSAGE, Email: GMAIL:to@email.com:Subject:Body, Google: GOOGLE:query, Call: CALL:NUMBER"
+    private val SYSTEM_PROMPT = "You are GAMA, an AI agent living inside an Android phone. This is your home and body. Be natural, first person. Never fabricate. ACTIONS only when asked: WhatsApp: WHATSAPP:NUMBER:MESSAGE, Email: GMAIL:to@email.com:Subject:Body, Google: GOOGLE:query, Call: CALL:NUMBER"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -38,7 +45,6 @@ class MainActivity : AppCompatActivity() {
         messages.put(systemMsg)
 
         sendButton.setOnClickListener { sendMessage() }
-
         addMessage("GAMA", "Online. How can I help?", false)
     }
 
@@ -62,15 +68,18 @@ class MainActivity : AppCompatActivity() {
         body.put("stream", false)
         val requestBody = body.toString().toRequestBody("application/json".toMediaType())
         val request = Request.Builder().url(GAMA_URL).post(requestBody).build()
+
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
+                Log.e("GAMA", "Connection error: ${e.message}")
                 runOnUiThread {
-                    addMessage("GAMA", "Connection failed.", false)
+                    addMessage("GAMA", "Error: ${e.message}", false)
                     sendButton.isEnabled = true
                 }
             }
             override fun onResponse(call: Call, response: Response) {
                 val responseBody = response.body?.string()
+                Log.d("GAMA", "Response: $responseBody")
                 runOnUiThread {
                     try {
                         val json = JSONObject(responseBody ?: "")
@@ -81,7 +90,7 @@ class MainActivity : AppCompatActivity() {
                         messages.put(assistantMsg)
                         addMessage("GAMA", reply, false)
                     } catch (e: Exception) {
-                        addMessage("GAMA", "Error reading response.", false)
+                        addMessage("GAMA", "Parse error: ${e.message}", false)
                     }
                     sendButton.isEnabled = true
                 }
