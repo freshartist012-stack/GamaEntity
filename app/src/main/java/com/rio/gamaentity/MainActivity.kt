@@ -1,5 +1,7 @@
 package com.rio.gamaentity
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.widget.*
@@ -11,6 +13,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+import java.util.regex.Pattern
 
 class MainActivity : AppCompatActivity() {
 
@@ -28,7 +31,7 @@ class MainActivity : AppCompatActivity() {
     private val messages = JSONArray()
     private val GAMA_URL = "http://204.168.232.162:11434/api/chat"
     private val MODEL = "gama"
-    private val SYSTEM_PROMPT = "You are GAMA, an AI agent living inside an Android phone. This is your home and body. Be natural, first person. Never fabricate. ACTIONS only when asked: WhatsApp: WHATSAPP:NUMBER:MESSAGE, Email: GMAIL:to@email.com:Subject:Body, Google: GOOGLE:query, Call: CALL:NUMBER"
+    private val SYSTEM_PROMPT = "You are GAMA, an AI agent living inside an Android phone. This is your home and body. Be natural, first person. Never fabricate. ACTIONS only when explicitly asked: WhatsApp: WHATSAPP:NUMBER:MESSAGE, Email: GMAIL:to@email.com:Subject:Body, Google: GOOGLE:query, YouTube: YOUTUBE:query, Call: CALL:NUMBER"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -71,7 +74,6 @@ class MainActivity : AppCompatActivity() {
 
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                Log.e("GAMA", "Connection error: ${e.message}")
                 runOnUiThread {
                     addMessage("GAMA", "Error: ${e.message}", false)
                     sendButton.isEnabled = true
@@ -79,7 +81,6 @@ class MainActivity : AppCompatActivity() {
             }
             override fun onResponse(call: Call, response: Response) {
                 val responseBody = response.body?.string()
-                Log.d("GAMA", "Response: $responseBody")
                 runOnUiThread {
                     try {
                         val json = JSONObject(responseBody ?: "")
@@ -89,6 +90,7 @@ class MainActivity : AppCompatActivity() {
                         assistantMsg.put("content", reply)
                         messages.put(assistantMsg)
                         addMessage("GAMA", reply, false)
+                        handleAction(reply)
                     } catch (e: Exception) {
                         addMessage("GAMA", "Parse error: ${e.message}", false)
                     }
@@ -96,6 +98,69 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         })
+    }
+
+    private fun handleAction(reply: String) {
+        // WhatsApp
+        val waPattern = Pattern.compile("(?i)WHATSAPP:([\\d+\\s-]+):(.+)", Pattern.DOTALL)
+        val waMatcher = waPattern.matcher(reply)
+        if (waMatcher.find()) {
+            val number = waMatcher.group(1)?.trim()?.replace("[^\\d+]".toRegex(), "") ?: ""
+            val message = waMatcher.group(2)?.trim() ?: ""
+            val intent = Intent(Intent.ACTION_VIEW)
+            intent.data = Uri.parse("whatsapp://send?phone=$number&text=${Uri.encode(message)}")
+            try { startActivity(intent) } catch (e: Exception) {
+                addMessage("GAMA", "WhatsApp not installed.", false)
+            }
+            return
+        }
+
+        // Call
+        val callPattern = Pattern.compile("(?i)CALL:([\\d+\\s-]+)")
+        val callMatcher = callPattern.matcher(reply)
+        if (callMatcher.find()) {
+            val number = callMatcher.group(1)?.trim()?.replace("[^\\d+]".toRegex(), "") ?: ""
+            val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$number"))
+            startActivity(intent)
+            return
+        }
+
+        // Email
+        val gmailPattern = Pattern.compile("(?i)GMAIL:(.+?):(.+?):(.+)", Pattern.DOTALL)
+        val gmailMatcher = gmailPattern.matcher(reply)
+        if (gmailMatcher.find()) {
+            val to = gmailMatcher.group(1)?.trim() ?: ""
+            val subject = gmailMatcher.group(2)?.trim()
+                ?.replace("Subject:", "")?.replace("subject:", "")?.trim() ?: ""
+            val body = gmailMatcher.group(3)?.trim() ?: ""
+            val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$to"))
+            intent.putExtra(Intent.EXTRA_SUBJECT, subject)
+            intent.putExtra(Intent.EXTRA_TEXT, body)
+            startActivity(intent)
+            return
+        }
+
+        // Google Search
+        val googlePattern = Pattern.compile("(?i)GOOGLE:(.+)")
+        val googleMatcher = googlePattern.matcher(reply)
+        if (googleMatcher.find()) {
+            val query = googleMatcher.group(1)?.trim() ?: ""
+            val intent = Intent(Intent.ACTION_VIEW,
+                Uri.parse("https://www.google.com/search?q=${Uri.encode(query)}"))
+            startActivity(intent)
+            return
+        }
+
+        // YouTube
+        val ytPattern = Pattern.compile("(?i)YOUTUBE:(.+)")
+        val ytMatcher = ytPattern.matcher(reply)
+        if (ytMatcher.find()) {
+            val query = ytMatcher.group(1)?.trim() ?: ""
+            val intent = Intent(Intent.ACTION_VIEW,
+                Uri.parse("https://www.youtube.com/results?search_query=${Uri.encode(query)}"))
+            startActivity(intent)
+            return
+        }
     }
 
     private fun addMessage(sender: String, text: String, isUser: Boolean) {
