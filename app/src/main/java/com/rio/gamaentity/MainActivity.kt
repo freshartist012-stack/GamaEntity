@@ -63,23 +63,8 @@ class MainActivity : AppCompatActivity() {
             != PackageManager.PERMISSION_GRANTED) needed.add(Manifest.permission.READ_CONTACTS)
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE)
             != PackageManager.PERMISSION_GRANTED) needed.add(Manifest.permission.CALL_PHONE)
-
         if (needed.isNotEmpty()) {
-            val shouldShow = needed.any {
-                ActivityCompat.shouldShowRequestPermissionRationale(this, it)
-            }
-            if (shouldShow) {
-                AlertDialog.Builder(this)
-                    .setTitle("Permissions needed")
-                    .setMessage("GAMA needs contacts and call access to send messages and make calls.")
-                    .setPositiveButton("Grant") { _, _ ->
-                        ActivityCompat.requestPermissions(this, needed.toTypedArray(), PERMISSIONS_REQUEST)
-                    }
-                    .setNegativeButton("Skip") { d, _ -> d.dismiss() }
-                    .show()
-            } else {
-                ActivityCompat.requestPermissions(this, needed.toTypedArray(), PERMISSIONS_REQUEST)
-            }
+            ActivityCompat.requestPermissions(this, needed.toTypedArray(), PERMISSIONS_REQUEST)
         }
     }
 
