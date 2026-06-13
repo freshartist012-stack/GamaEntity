@@ -10,8 +10,10 @@ import android.database.Cursor
 import android.net.Uri
 import android.os.Bundle
 import android.provider.ContactsContract
+import android.provider.Settings
 import android.util.Log
 import android.widget.*
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -61,8 +63,42 @@ class MainActivity : AppCompatActivity() {
             != PackageManager.PERMISSION_GRANTED) needed.add(Manifest.permission.READ_CONTACTS)
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE)
             != PackageManager.PERMISSION_GRANTED) needed.add(Manifest.permission.CALL_PHONE)
-        if (needed.isNotEmpty())
-            ActivityCompat.requestPermissions(this, needed.toTypedArray(), PERMISSIONS_REQUEST)
+
+        if (needed.isNotEmpty()) {
+            val shouldShow = needed.any {
+                ActivityCompat.shouldShowRequestPermissionRationale(this, it)
+            }
+            if (shouldShow) {
+                AlertDialog.Builder(this)
+                    .setTitle("Permissions needed")
+                    .setMessage("GAMA needs contacts and call access to send messages and make calls.")
+                    .setPositiveButton("Grant") { _, _ ->
+                        ActivityCompat.requestPermissions(this, needed.toTypedArray(), PERMISSIONS_REQUEST)
+                    }
+                    .setNegativeButton("Skip") { d, _ -> d.dismiss() }
+                    .show()
+            } else {
+                ActivityCompat.requestPermissions(this, needed.toTypedArray(), PERMISSIONS_REQUEST)
+            }
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == PERMISSIONS_REQUEST) {
+            val denied = grantResults.any { it != PackageManager.PERMISSION_GRANTED }
+            if (denied) {
+                AlertDialog.Builder(this)
+                    .setTitle("Permissions denied")
+                    .setMessage("Some features need contacts and call permissions. Enable them in Settings.")
+                    .setPositiveButton("Open Settings") { _, _ ->
+                        startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.parse("package:$packageName")))
+                    }
+                    .setNegativeButton("Skip") { d, _ -> d.dismiss() }
+                    .show()
+            }
+        }
     }
 
     private fun getContacts(): String {
@@ -95,8 +131,9 @@ class MainActivity : AppCompatActivity() {
     private fun formatNumber(raw: String): String {
         val digits = raw.replace("[^\\d]".toRegex(), "")
         return when {
-            digits.startsWith("27") -> digits
-            digits.startsWith("0") -> "27${digits.substring(1)}"
+            digits.startsWith("27") && digits.length >= 11 -> digits
+            digits.startsWith("0") && digits.length == 10 -> "27${digits.substring(1)}"
+            digits.length == 9 -> "27$digits"
             else -> digits
         }
     }
@@ -108,14 +145,15 @@ class MainActivity : AppCompatActivity() {
 Be natural, first person, concise. Never fabricate.
 
 $contactsSection
-CRITICAL: When performing actions output the command on its own line at the end.
-Use EXACT format with no spaces around colons, no quotes, no asterisks:
-WhatsApp: WHATSAPP:NUMBER:MESSAGE
-Call: CALL:NUMBER
-Email: GMAIL:email@domain.com:Subject:Body
-Google: GOOGLE:search terms
-YouTube: YOUTUBE:search terms
-Always use the actual phone number from contacts, never the name."""
+CRITICAL ACTION RULES:
+- Output ONE command per response, on its own line at the end
+- No spaces around colons, no quotes, no asterisks, no brackets
+- WhatsApp: WHATSAPP:NUMBER:MESSAGE (use number from contacts, not name)
+- Call: CALL:NUMBER (use number from contacts, not name)
+- Email: GMAIL:email@domain.com:Subject:Body (make subject relevant, not literal word Subject)
+- Google: GOOGLE:search terms
+- YouTube: YOUTUBE:search terms
+- Always convert contact names to their actual numbers"""
     }
 
     private fun sendMessage() {
@@ -179,36 +217,32 @@ Always use the actual phone number from contacts, never the name."""
         for (line in reply.split("\n")) {
             val t = line.trim()
 
-            Regex("(?i)WHATSAPP:([\\d+\\s-]+):(.+)").find(t)?.let {
+            Regex("(?i)WHATSAPP:([\\d+\\s()-]+):(.+)").find(t)?.let {
                 val number = formatNumber(it.groupValues[1])
                 val message = it.groupValues[2].trim()
                 val uri = Uri.parse("https://api.whatsapp.com/send?phone=$number&text=${Uri.encode(message)}")
-                val intent = Intent(Intent.ACTION_VIEW, uri)
-                intent.setPackage("com.whatsapp")
-                try {
-                    startActivity(intent)
-                } catch (e: Exception) {
-                    val fallback = Intent(Intent.ACTION_VIEW, uri)
-                    startActivity(fallback)
+                val waIntent = Intent(Intent.ACTION_VIEW, uri).apply { setPackage("com.whatsapp") }
+                try { startActivity(waIntent) } catch (e: Exception) {
+                    try { startActivity(Intent(Intent.ACTION_VIEW, uri)) } catch (e2: Exception) {
+                        addMessage("GAMA", "WhatsApp not found.", false)
+                    }
                 }
                 return
             }
 
-            Regex("(?i)CALL:([\\d+\\s-]+)").find(t)?.let {
+            Regex("(?i)CALL:([\\d+\\s()-]+)").find(t)?.let {
                 val number = formatNumber(it.groupValues[1])
-                val intent = Intent(Intent.ACTION_CALL, Uri.parse("tel:$number"))
                 try {
-                    startActivity(intent)
+                    startActivity(Intent(Intent.ACTION_CALL, Uri.parse("tel:$number")))
                 } catch (e: Exception) {
                     startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$number")))
                 }
                 return
             }
 
-            Regex("(?i)GMAIL:(.+?):(.+?):(.+)").find(t)?.let {
+            Regex("(?i)GMAIL:([^:]+):([^:]+):(.+)").find(t)?.let {
                 val to = it.groupValues[1].trim()
-                val subject = it.groupValues[2].trim()
-                    .replace(Regex("(?i)subject:\\s*"), "")
+                val subject = it.groupValues[2].trim().replace(Regex("(?i)^subject:\\s*"), "")
                 val body = it.groupValues[3].trim()
                 val uri = Uri.parse("mailto:$to?subject=${Uri.encode(subject)}&body=${Uri.encode(body)}")
                 startActivity(Intent(Intent.ACTION_VIEW, uri))
