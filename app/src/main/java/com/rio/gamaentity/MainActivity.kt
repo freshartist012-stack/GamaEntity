@@ -19,7 +19,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
 import java.util.concurrent.TimeUnit
-import java.util.regex.Pattern
 
 class MainActivity : AppCompatActivity() {
 
@@ -37,6 +36,7 @@ class MainActivity : AppCompatActivity() {
     private val messages = JSONArray()
     private val GAMA_URL = "http://204.168.232.162:11434/api/chat"
     private val MODEL = "gama"
+    private val PERMISSIONS_REQUEST = 100
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,25 +47,45 @@ class MainActivity : AppCompatActivity() {
         inputField = findViewById(R.id.inputField)
         sendButton = findViewById(R.id.sendButton)
 
-        requestPermissions()
+        checkAndRequestPermissions()
         sendButton.setOnClickListener { sendMessage() }
         addMessage("GAMA", "Online. How can I help?", false)
     }
 
-    private fun requestPermissions() {
-        val permissions = arrayOf(
-            Manifest.permission.READ_CONTACTS,
-            Manifest.permission.CALL_PHONE
-        )
-        val notGranted = permissions.filter {
-            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+    private fun checkAndRequestPermissions() {
+        val needed = mutableListOf<String>()
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS)
+            != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.READ_CONTACTS)
         }
-        if (notGranted.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, notGranted.toTypedArray(), 1)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE)
+            != PackageManager.PERMISSION_GRANTED) {
+            needed.add(Manifest.permission.CALL_PHONE)
+        }
+        if (needed.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, needed.toTypedArray(), PERMISSIONS_REQUEST)
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == PERMISSIONS_REQUEST) {
+            val allGranted = grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+            if (allGranted) {
+                addMessage("GAMA", "Permissions granted. Ready.", false)
+            } else {
+                addMessage("GAMA", "Some permissions denied. Contacts and calls may not work.", false)
+            }
         }
     }
 
     private fun getContacts(): String {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS)
+            != PackageManager.PERMISSION_GRANTED) return ""
         val contacts = StringBuilder()
         try {
             val cursor: Cursor? = contentResolver.query(
@@ -92,21 +112,19 @@ class MainActivity : AppCompatActivity() {
 
     private fun buildSystemPrompt(): String {
         val contacts = getContacts()
+        val contactsSection = if (contacts.isNotEmpty()) "CONTACTS:\n$contacts\n" else ""
         return """You are GAMA, an AI agent inside an Android phone built by Rio.
 Be natural, first person, concise. Never fabricate.
 
-CONTACTS:
-$contacts
-
-CRITICAL RULES FOR ACTIONS:
-- Only output ONE action command per response
-- Use EXACT format with no spaces, no quotes, no asterisks
-- WhatsApp: WHATSAPP:NUMBER:MESSAGE (use actual number from contacts)
-- Call: CALL:NUMBER (use actual number from contacts)  
-- Email: GMAIL:email@address.com:Subject:Body
-- Google Search: GOOGLE:search terms here
-- YouTube: YOUTUBE:search terms here
-- Output the command on its own line at the END of your response"""
+$contactsSection
+CRITICAL: When performing actions output the command on its own line at the end.
+Use EXACT format, no spaces around colons, no quotes, no asterisks:
+WhatsApp: WHATSAPP:NUMBER:MESSAGE
+Call: CALL:NUMBER  
+Email: GMAIL:email@domain.com:Subject:Body
+Google: GOOGLE:search terms
+YouTube: YOUTUBE:search terms
+Always use the actual phone number from contacts, never the name."""
     }
 
     private fun sendMessage() {
@@ -167,15 +185,12 @@ CRITICAL RULES FOR ACTIONS:
     }
 
     private fun handleAction(reply: String) {
-        val lines = reply.split("\n")
-        for (line in lines) {
-            val trimmed = line.trim()
+        for (line in reply.split("\n")) {
+            val t = line.trim()
 
-            // WhatsApp
-            val waMatch = Regex("(?i)WHATSAPP:([\\d+]+):(.+)").find(trimmed)
-            if (waMatch != null) {
-                val number = waMatch.groupValues[1].replace("[^\\d+]".toRegex(), "")
-                val message = waMatch.groupValues[2].trim()
+            Regex("(?i)WHATSAPP:([\\d+]+):(.+)").find(t)?.let {
+                val number = it.groupValues[1].replace("[^\\d+]".toRegex(), "")
+                val message = it.groupValues[2].trim()
                 val intent = Intent(Intent.ACTION_VIEW)
                 intent.data = Uri.parse("whatsapp://send?phone=$number&text=${Uri.encode(message)}")
                 try { startActivity(intent) } catch (e: Exception) {
@@ -184,22 +199,17 @@ CRITICAL RULES FOR ACTIONS:
                 return
             }
 
-            // Call
-            val callMatch = Regex("(?i)CALL:([\\d+]+)").find(trimmed)
-            if (callMatch != null) {
-                val number = callMatch.groupValues[1].replace("[^\\d+]".toRegex(), "")
+            Regex("(?i)CALL:([\\d+]+)").find(t)?.let {
+                val number = it.groupValues[1].replace("[^\\d+]".toRegex(), "")
                 val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:$number"))
                 startActivity(intent)
                 return
             }
 
-            // Email
-            val gmailMatch = Regex("(?i)GMAIL:(.+?):(.+?):(.+)").find(trimmed)
-            if (gmailMatch != null) {
-                val to = gmailMatch.groupValues[1].trim()
-                val subject = gmailMatch.groupValues[2].trim()
-                    .replace(Regex("(?i)subject:\\s*"), "")
-                val body = gmailMatch.groupValues[3].trim()
+            Regex("(?i)GMAIL:(.+?):(.+?):(.+)").find(t)?.let {
+                val to = it.groupValues[1].trim()
+                val subject = it.groupValues[2].trim().replace(Regex("(?i)subject:\\s*"), "")
+                val body = it.groupValues[3].trim()
                 val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$to"))
                 intent.putExtra(Intent.EXTRA_SUBJECT, subject)
                 intent.putExtra(Intent.EXTRA_TEXT, body)
@@ -207,20 +217,16 @@ CRITICAL RULES FOR ACTIONS:
                 return
             }
 
-            // Google
-            val googleMatch = Regex("(?i)GOOGLE:(.+)").find(trimmed)
-            if (googleMatch != null) {
-                val query = googleMatch.groupValues[1].trim()
+            Regex("(?i)GOOGLE:(.+)").find(t)?.let {
+                val query = it.groupValues[1].trim()
                 val intent = Intent(Intent.ACTION_VIEW,
                     Uri.parse("https://www.google.com/search?q=${Uri.encode(query)}"))
                 startActivity(intent)
                 return
             }
 
-            // YouTube
-            val ytMatch = Regex("(?i)YOUTUBE:(.+)").find(trimmed)
-            if (ytMatch != null) {
-                val query = ytMatch.groupValues[1].trim()
+            Regex("(?i)YOUTUBE:(.+)").find(t)?.let {
+                val query = it.groupValues[1].trim()
                 val intent = Intent(Intent.ACTION_VIEW,
                     Uri.parse("https://www.youtube.com/results?search_query=${Uri.encode(query)}"))
                 startActivity(intent)
