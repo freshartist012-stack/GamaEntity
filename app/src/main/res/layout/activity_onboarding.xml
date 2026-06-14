@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="32dp"
+    android:background="#F5F5F5">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="GAMA Entity"
+        android:textSize="32sp"
+        android:textStyle="bold"
+        android:textColor="#1A1A2E"
+        android:layout_marginBottom="8dp"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Your AI agent"
+        android:textSize="16sp"
+        android:textColor="#666666"
+        android:layout_marginBottom="40dp"/>
+
+    <EditText
+        android:id="@+id/nameInput"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Enter your name"
+        android:textColor="#111111"
+        android:textColorHint="#888888"
+        android:padding="16dp"
+        android:background="#FFFFFF"
+        android:layout_marginBottom="16dp"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Choose your model"
+        android:textSize="16sp"
+        android:textColor="#1A1A2E"
+        android:textStyle="bold"
+        android:layout_marginBottom="16dp"/>
+
+    <Button
+        android:id="@+id/nativeButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="GAMA (Native Model)"
+        android:backgroundTint="#1A1A2E"
+        android:textColor="#FFFFFF"
+        android:layout_marginBottom="12dp"/>
+
+    <Button
+        android:id="@+id/groqButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Groq API (Recommended - Free)"
+        android:backgroundTint="#4CAF50"
+        android:textColor="#FFFFFF"/>
+
+</LinearLayout>

@@ -5,24 +5,28 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.database.Cursor
 import android.net.Uri
 import android.os.Bundle
 import android.provider.ContactsContract
-import android.provider.Settings
 import android.util.Log
+import android.view.Gravity
 import android.widget.*
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.drawerlayout.widget.DrawerLayout
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 import java.io.IOException
+import java.text.SimpleDateFormat
+import java.util.*
 import java.util.concurrent.TimeUnit
 
 class MainActivity : AppCompatActivity() {
@@ -31,6 +35,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var scrollView: ScrollView
     private lateinit var inputField: EditText
     private lateinit var sendButton: Button
+    private lateinit var drawerLayout: DrawerLayout
+    private lateinit var drawerContent: LinearLayout
+    private lateinit var prefs: SharedPreferences
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
@@ -40,21 +47,37 @@ class MainActivity : AppCompatActivity() {
 
     private val messages = JSONArray()
     private val GAMA_URL = "http://204.168.232.162:11434/api/chat"
-    private val MODEL = "gama"
-    private val PERMISSIONS_REQUEST = 100
+    private var currentChatFile: String = ""
+    private var userName = "User"
+    private var modelType = "native"
+    private var groqKey = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        prefs = getSharedPreferences("gama_prefs", MODE_PRIVATE)
+        userName = prefs.getString("user_name", "User") ?: "User"
+        modelType = prefs.getString("model_type", "native") ?: "native"
+        groqKey = prefs.getString("groq_key", "") ?: ""
+
+        drawerLayout = findViewById(R.id.drawerLayout)
+        drawerContent = findViewById(R.id.drawerContent)
         messagesContainer = findViewById(R.id.messagesContainer)
         scrollView = findViewById(R.id.scrollView)
         inputField = findViewById(R.id.inputField)
         sendButton = findViewById(R.id.sendButton)
 
-        checkAndRequestPermissions()
+        val menuButton = findViewById<ImageButton>(R.id.menuButton)
+        menuButton.setOnClickListener {
+            drawerLayout.openDrawer(Gravity.LEFT)
+            loadChatHistory()
+        }
+
         sendButton.setOnClickListener { sendMessage() }
-        addMessage("GAMA", "Online. How can I help?", false)
+
+        checkAndRequestPermissions()
+        startNewChat()
     }
 
     private fun checkAndRequestPermissions() {
@@ -63,26 +86,113 @@ class MainActivity : AppCompatActivity() {
             != PackageManager.PERMISSION_GRANTED) needed.add(Manifest.permission.READ_CONTACTS)
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE)
             != PackageManager.PERMISSION_GRANTED) needed.add(Manifest.permission.CALL_PHONE)
-        if (needed.isNotEmpty()) {
-            ActivityCompat.requestPermissions(this, needed.toTypedArray(), PERMISSIONS_REQUEST)
+        if (needed.isNotEmpty())
+            ActivityCompat.requestPermissions(this, needed.toTypedArray(), 100)
+    }
+
+    private fun startNewChat() {
+        messages.length().let { len ->
+            for (i in len - 1 downTo 0) messages.remove(i)
+        }
+        messagesContainer.removeAllViews()
+        val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+        currentChatFile = "chat_$timestamp.json"
+        drawerLayout.closeDrawers()
+        addMessage("GAMA", "Hi $userName! How can I help?", false)
+    }
+
+    private fun loadChatHistory() {
+        drawerContent.removeAllViews()
+
+        val title = TextView(this)
+        title.text = "Chats"
+        title.textSize = 18f
+        title.setPadding(24, 24, 24, 16)
+        title.setTextColor(resources.getColor(android.R.color.white, null))
+        drawerContent.addView(title)
+
+        val newChatBtn = Button(this)
+        newChatBtn.text = "New Chat"
+        newChatBtn.setBackgroundColor(0xFF4CAF50.toInt())
+        newChatBtn.setTextColor(0xFFFFFFFF.toInt())
+        val btnParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        btnParams.setMargins(16, 8, 16, 16)
+        newChatBtn.layoutParams = btnParams
+        newChatBtn.setOnClickListener { startNewChat() }
+        drawerContent.addView(newChatBtn)
+
+        val switchBtn = Button(this)
+        switchBtn.text = "Switch Model (${if (modelType == "groq") "Groq" else "GAMA"})"
+        switchBtn.setBackgroundColor(0xFF1A1A2E.toInt())
+        switchBtn.setTextColor(0xFFFFFFFF.toInt())
+        switchBtn.layoutParams = btnParams
+        switchBtn.setOnClickListener {
+            startActivity(Intent(this, OnboardingActivity::class.java).apply {
+                prefs.edit().remove("user_name").apply()
+            })
+            finish()
+        }
+        drawerContent.addView(switchBtn)
+
+        val chatsDir = File(filesDir, "chats")
+        if (chatsDir.exists()) {
+            val files = chatsDir.listFiles()?.sortedByDescending { it.lastModified() } ?: emptyList()
+            for (file in files) {
+                try {
+                    val content = file.readText()
+                    val arr = JSONArray(content)
+                    val firstMsg = if (arr.length() > 0) {
+                        arr.getJSONObject(0).getString("content").take(40)
+                    } else file.name
+                    val chatBtn = TextView(this)
+                    chatBtn.text = firstMsg
+                    chatBtn.setPadding(24, 16, 24, 16)
+                    chatBtn.setTextColor(0xFFCCCCCC.toInt())
+                    chatBtn.textSize = 14f
+                    chatBtn.setOnClickListener { loadChat(file) }
+                    drawerContent.addView(chatBtn)
+                } catch (e: Exception) { }
+            }
         }
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == PERMISSIONS_REQUEST) {
-            val denied = grantResults.any { it != PackageManager.PERMISSION_GRANTED }
-            if (denied) {
-                AlertDialog.Builder(this)
-                    .setTitle("Permissions denied")
-                    .setMessage("Some features need contacts and call permissions. Enable them in Settings.")
-                    .setPositiveButton("Open Settings") { _, _ ->
-                        startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                            Uri.parse("package:$packageName")))
-                    }
-                    .setNegativeButton("Skip") { d, _ -> d.dismiss() }
-                    .show()
+    private fun loadChat(file: File) {
+        try {
+            val content = file.readText()
+            val saved = JSONArray(content)
+            messages.length().let { len -> for (i in len - 1 downTo 0) messages.remove(i) }
+            messagesContainer.removeAllViews()
+            currentChatFile = file.name
+            for (i in 0 until saved.length()) {
+                val msg = saved.getJSONObject(i)
+                val role = msg.getString("role")
+                val text = msg.getString("content")
+                if (role == "user") addMessage("You", text, true)
+                else if (role == "assistant") addMessage("GAMA", text, false)
+                messages.put(msg)
             }
+            drawerLayout.closeDrawers()
+        } catch (e: Exception) {
+            Toast.makeText(this, "Could not load chat", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun saveCurrentChat() {
+        try {
+            val chatsDir = File(filesDir, "chats")
+            if (!chatsDir.exists()) chatsDir.mkdirs()
+            val file = File(chatsDir, currentChatFile)
+            val toSave = JSONArray()
+            for (i in 0 until messages.length()) {
+                val msg = messages.getJSONObject(i)
+                if (msg.getString("role") != "system") toSave.put(msg)
+            }
+            file.writeText(toSave.toString())
+        } catch (e: Exception) {
+            Log.e("GAMA", "Save error: ${e.message}")
         }
     }
 
@@ -107,9 +217,7 @@ class MainActivity : AppCompatActivity() {
                     contacts.append("$name: $number\n")
                 }
             }
-        } catch (e: Exception) {
-            Log.e("GAMA", "Contacts error: ${e.message}")
-        }
+        } catch (e: Exception) { }
         return contacts.toString().take(2000)
     }
 
@@ -126,19 +234,17 @@ class MainActivity : AppCompatActivity() {
     private fun buildSystemPrompt(): String {
         val contacts = getContacts()
         val contactsSection = if (contacts.isNotEmpty()) "CONTACTS:\n$contacts\n" else ""
-        return """You are GAMA, an AI agent inside an Android phone built by Rio.
+        return """You are GAMA, an AI agent inside an Android phone. The user's name is $userName.
 Be natural, first person, concise. Never fabricate.
 
 $contactsSection
-CRITICAL ACTION RULES:
-- Output ONE command per response, on its own line at the end
-- No spaces around colons, no quotes, no asterisks, no brackets
-- WhatsApp: WHATSAPP:NUMBER:MESSAGE (use number from contacts, not name)
-- Call: CALL:NUMBER (use number from contacts, not name)
-- Email: GMAIL:email@domain.com:Subject:Body (make subject relevant, not literal word Subject)
-- Google: GOOGLE:search terms
-- YouTube: YOUTUBE:search terms
-- Always convert contact names to their actual numbers"""
+ACTIONS - output on its own line at end of response, exact format:
+WHATSAPP:NUMBER:MESSAGE
+CALL:NUMBER
+GMAIL:email@domain.com:Subject:Body
+GOOGLE:search terms
+YOUTUBE:search terms
+Always use actual phone number from contacts, never the name."""
     }
 
     private fun sendMessage() {
@@ -159,17 +265,21 @@ CRITICAL ACTION RULES:
         userMsg.put("content", text)
         messages.put(userMsg)
         sendButton.isEnabled = false
-        callGama()
+
+        if (modelType == "groq" && groqKey.isNotEmpty()) {
+            callGroq()
+        } else {
+            callGama()
+        }
     }
 
     private fun callGama() {
         val body = JSONObject()
-        body.put("model", MODEL)
+        body.put("model", "gama")
         body.put("messages", messages)
         body.put("stream", false)
         val requestBody = body.toString().toRequestBody("application/json".toMediaType())
         val request = Request.Builder().url(GAMA_URL).post(requestBody).build()
-
         client.newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 runOnUiThread {
@@ -178,24 +288,68 @@ CRITICAL ACTION RULES:
                 }
             }
             override fun onResponse(call: Call, response: Response) {
-                val responseBody = response.body?.string()
+                val body = response.body?.string()
                 runOnUiThread {
                     try {
-                        val json = JSONObject(responseBody ?: "")
-                        val reply = json.getJSONObject("message").getString("content")
-                        val assistantMsg = JSONObject()
-                        assistantMsg.put("role", "assistant")
-                        assistantMsg.put("content", reply)
-                        messages.put(assistantMsg)
-                        addMessage("GAMA", reply, false)
-                        handleAction(reply)
+                        val reply = JSONObject(body ?: "").getJSONObject("message").getString("content")
+                        finishResponse(reply)
                     } catch (e: Exception) {
-                        addMessage("GAMA", "Parse error: ${e.message}", false)
+                        addMessage("GAMA", "Parse error", false)
                     }
                     sendButton.isEnabled = true
                 }
             }
         })
+    }
+
+    private fun callGroq() {
+        val groqMessages = JSONArray()
+        for (i in 0 until messages.length()) groqMessages.put(messages.getJSONObject(i))
+        val body = JSONObject()
+        body.put("model", "llama-3.3-70b-versatile")
+        body.put("messages", groqMessages)
+        body.put("max_tokens", 1000)
+        val requestBody = body.toString().toRequestBody("application/json".toMediaType())
+        val request = Request.Builder()
+            .url("https://api.groq.com/openai/v1/chat/completions")
+            .addHeader("Authorization", "Bearer $groqKey")
+            .addHeader("Content-Type", "application/json")
+            .post(requestBody)
+            .build()
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                runOnUiThread {
+                    addMessage("GAMA", "Error: ${e.message}", false)
+                    sendButton.isEnabled = true
+                }
+            }
+            override fun onResponse(call: Call, response: Response) {
+                val body = response.body?.string()
+                runOnUiThread {
+                    try {
+                        val reply = JSONObject(body ?: "")
+                            .getJSONArray("choices")
+                            .getJSONObject(0)
+                            .getJSONObject("message")
+                            .getString("content")
+                        finishResponse(reply)
+                    } catch (e: Exception) {
+                        addMessage("GAMA", "Parse error", false)
+                    }
+                    sendButton.isEnabled = true
+                }
+            }
+        })
+    }
+
+    private fun finishResponse(reply: String) {
+        val assistantMsg = JSONObject()
+        assistantMsg.put("role", "assistant")
+        assistantMsg.put("content", reply)
+        messages.put(assistantMsg)
+        addMessage("GAMA", reply, false)
+        handleAction(reply)
+        saveCurrentChat()
     }
 
     private fun handleAction(reply: String) {
@@ -206,11 +360,9 @@ CRITICAL ACTION RULES:
                 val number = formatNumber(it.groupValues[1])
                 val message = it.groupValues[2].trim()
                 val uri = Uri.parse("https://api.whatsapp.com/send?phone=$number&text=${Uri.encode(message)}")
-                val waIntent = Intent(Intent.ACTION_VIEW, uri).apply { setPackage("com.whatsapp") }
-                try { startActivity(waIntent) } catch (e: Exception) {
-                    try { startActivity(Intent(Intent.ACTION_VIEW, uri)) } catch (e2: Exception) {
-                        addMessage("GAMA", "WhatsApp not found.", false)
-                    }
+                val intent = Intent(Intent.ACTION_VIEW, uri).apply { setPackage("com.whatsapp") }
+                try { startActivity(intent) } catch (e: Exception) {
+                    try { startActivity(Intent(Intent.ACTION_VIEW, uri)) } catch (e2: Exception) { }
                 }
                 return
             }
@@ -235,16 +387,14 @@ CRITICAL ACTION RULES:
             }
 
             Regex("(?i)GOOGLE:(.+)").find(t)?.let {
-                val query = it.groupValues[1].trim()
                 startActivity(Intent(Intent.ACTION_VIEW,
-                    Uri.parse("https://www.google.com/search?q=${Uri.encode(query)}")))
+                    Uri.parse("https://www.google.com/search?q=${Uri.encode(it.groupValues[1].trim())}")))
                 return
             }
 
             Regex("(?i)YOUTUBE:(.+)").find(t)?.let {
-                val query = it.groupValues[1].trim()
                 startActivity(Intent(Intent.ACTION_VIEW,
-                    Uri.parse("https://www.youtube.com/results?search_query=${Uri.encode(query)}")))
+                    Uri.parse("https://www.youtube.com/results?search_query=${Uri.encode(it.groupValues[1].trim())}")))
                 return
             }
         }
@@ -270,11 +420,11 @@ CRITICAL ACTION RULES:
         if (isUser) {
             messageView.setBackgroundResource(R.drawable.user_bubble)
             messageView.setTextColor(resources.getColor(android.R.color.white, null))
-            params.gravity = android.view.Gravity.END
+            params.gravity = Gravity.END
         } else {
             messageView.setBackgroundResource(R.drawable.gama_bubble)
             messageView.setTextColor(resources.getColor(android.R.color.black, null))
-            params.gravity = android.view.Gravity.START
+            params.gravity = Gravity.START
         }
         messageView.layoutParams = params
         messagesContainer.addView(messageView)
