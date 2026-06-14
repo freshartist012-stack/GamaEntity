@@ -155,6 +155,7 @@ class MainActivity : AppCompatActivity() {
         val enabled = android.provider.Settings.Secure.getString(
             contentResolver, android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
         ) ?: ""
+        if (!enabled.contains(packageName)) {
             AlertDialog.Builder(this)
                 .setTitle("Enable Auto-Send")
                 .setMessage("To automatically send WhatsApp messages, enable GAMA Entity in Accessibility Settings.")
