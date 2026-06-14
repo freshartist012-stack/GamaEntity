@@ -1,6 +1,7 @@
 package com.rio.gamaentity
 
 import android.Manifest
+import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
