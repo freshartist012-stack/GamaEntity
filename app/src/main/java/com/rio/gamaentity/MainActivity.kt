@@ -163,7 +163,7 @@ class MainActivity : AppCompatActivity() {
         switchBtn.setTextColor(0xFFFFFFFF.toInt())
         switchBtn.layoutParams = btnParams
         switchBtn.setOnClickListener {
-            prefs.edit().remove("user_name").apply()
+            prefs.edit().remove("model_type").remove("groq_key").apply()
             startActivity(Intent(this, OnboardingActivity::class.java))
             finish()
         }
@@ -253,7 +253,7 @@ class MainActivity : AppCompatActivity() {
 Be natural, first person, concise. Never fabricate.
 
 $contactsSection
-ACTIONS - output on its own line at end of response, exact format:
+ONLY output an action command if the user EXPLICITLY asks you to perform one. Never suggest or trigger actions on your own. When asked, output the command on its own line at the end:
 WHATSAPP:NUMBER:MESSAGE
 CALL:NUMBER
 GMAIL:email@domain.com:Subject:Body

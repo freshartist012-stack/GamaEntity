@@ -15,7 +15,9 @@ class OnboardingActivity : AppCompatActivity() {
 
         prefs = getSharedPreferences("gama_prefs", MODE_PRIVATE)
 
-        if (prefs.getString("user_name", null) != null) {
+        val savedName = prefs.getString("user_name", null)
+        val savedModel = prefs.getString("model_type", null)
+        if (savedName != null && savedModel != null) {
             startActivity(Intent(this, MainActivity::class.java))
             finish()
             return
