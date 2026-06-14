@@ -93,6 +93,7 @@ class MainActivity : AppCompatActivity() {
         micButton.setOnClickListener { startVoiceInput() }
 
         checkAndRequestPermissions()
+        checkAccessibilityService()
         startNewChat()
     }
 
@@ -148,6 +149,21 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+
+    private fun checkAccessibilityService() {
+        val enabled = android.provider.Settings.Secure.getString(
+            contentResolver, android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+        ) ?: ""
+            android.app.AlertDialog.Builder(this)
+                .setTitle("Enable Auto-Send")
+                .setMessage("To automatically send WhatsApp messages, enable GAMA Entity in Accessibility Settings.")
+                .setPositiveButton("Open Settings") { _, _ ->
+                    startActivity(android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                }
+                .setNegativeButton("Skip") { d, _ -> d.dismiss() }
+                .show()
+        }
+    }
     private fun startNewChat() {
         for (i in messages.length() - 1 downTo 0) messages.remove(i)
         messagesContainer.removeAllViews()
@@ -414,6 +430,7 @@ Always use actual phone number from contacts, never the name."""
                 val number = lookupContact(it.groupValues[1].trim())
                 val message = it.groupValues[2].trim()
                 val uri = Uri.parse("https://api.whatsapp.com/send?phone=$number&text=${Uri.encode(message)}")
+                GamaAccessibilityService.pendingSend = true
                 try { startActivity(Intent(Intent.ACTION_VIEW, uri).apply { setPackage("com.whatsapp") }) }
                 catch (e: Exception) { try { startActivity(Intent(Intent.ACTION_VIEW, uri)) } catch (e2: Exception) {} }
                 return

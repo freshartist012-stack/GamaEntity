@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">GAMA Entity</string>
+    <string name="accessibility_description">GAMA Entity uses accessibility to automatically send WhatsApp messages on your behalf.</string>
 </resources>
