@@ -66,6 +66,14 @@
             android:padding="8dp"
             android:background="#FFFFFF">
 
+            <ImageButton
+                android:id="@+id/micButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@android:drawable/ic_btn_speak_now"
+                android:background="@android:color/transparent"
+                android:tint="#1A1A2E"/>
+
             <EditText
                 android:id="@+id/inputField"
                 android:layout_width="0dp"
