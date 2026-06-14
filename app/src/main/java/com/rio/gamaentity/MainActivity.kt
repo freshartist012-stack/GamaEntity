@@ -439,9 +439,15 @@ Always use actual phone number from contacts, never the name."""
             }
 
             Regex("(?i)CALL:([^\\n]+)").find(t)?.let {
-                val number = lookupContact(it.groupValues[1].trim())
-                try { startActivity(Intent(Intent.ACTION_CALL, Uri.parse("tel:$number"))) }
-                catch (e: Exception) { startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$number"))) }
+                val raw = it.groupValues[1].trim()
+                val number = lookupContact(raw)
+                val digits = number.replace("[^\\d]".toRegex(), "")
+                if (digits.length < 7) {
+                    addMessage("GAMA", "Contact not found. Please check the name and try again.", false)
+                } else {
+                    try { startActivity(Intent(Intent.ACTION_CALL, Uri.parse("tel:$number"))) }
+                    catch (e: Exception) { startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$number"))) }
+                }
                 return
             }
 
