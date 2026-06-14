@@ -363,7 +363,7 @@ Always use actual phone number from contacts, never the name."""
             client.newCall(req).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
                     runOnUiThread {
-                        addMessage("GAMA", "Error: ${e.message}", false)
+                        addMessage("GAMA", "Unable to connect. Please check your internet connection.", false)
                         sendButton.isEnabled = true
                         micButton.isEnabled = true
                     }
@@ -395,7 +395,7 @@ Always use actual phone number from contacts, never the name."""
         client.newCall(req).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 runOnUiThread {
-                    addMessage("GAMA", "Error: ${e.message}", false)
+                    addMessage("GAMA", "Unable to connect. Please check your internet connection.", false)
                     sendButton.isEnabled = true
                     micButton.isEnabled = true
                 }
@@ -442,12 +442,12 @@ Always use actual phone number from contacts, never the name."""
                 val raw = it.groupValues[1].trim()
                 val number = lookupContact(raw)
                 val digits = number.replace("[^\\d]".toRegex(), "")
-                if (digits.length < 7) {
-                    addMessage("GAMA", "Contact not found. Please check the name and try again.", false)
-                } else {
-                    try { startActivity(Intent(Intent.ACTION_CALL, Uri.parse("tel:$number"))) }
-                    catch (e: Exception) { startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$number"))) }
+                if (digits.length < 7 || number == raw) {
+                    addMessage("GAMA", "I couldn't find that contact. Please check the name.", false)
+                    return
                 }
+                try { startActivity(Intent(Intent.ACTION_CALL, Uri.parse("tel:$number"))) }
+                catch (e: Exception) { startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$number"))) }
                 return
             }
 
@@ -478,10 +478,21 @@ Always use actual phone number from contacts, never the name."""
         messageView.textSize = 16f
         messageView.setTextIsSelectable(true)
         messageView.setOnLongClickListener {
-            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            clipboard.setPrimaryClip(ClipData.newPlainText("GAMA", text))
-            Toast.makeText(this, "Copied", Toast.LENGTH_SHORT).show()
-            if (!isUser && ttsReady) speakText(text)
+            val options = if (!isUser && ttsReady)
+                arrayOf("Copy", "Read aloud")
+            else
+                arrayOf("Copy")
+            AlertDialog.Builder(this)
+                .setItems(options) { _, which ->
+                    when (which) {
+                        0 -> {
+                            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            clipboard.setPrimaryClip(ClipData.newPlainText("GAMA", text))
+                            Toast.makeText(this, "Copied", Toast.LENGTH_SHORT).show()
+                        }
+                        1 -> speakText(text)
+                    }
+                }.show()
             true
         }
         val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
