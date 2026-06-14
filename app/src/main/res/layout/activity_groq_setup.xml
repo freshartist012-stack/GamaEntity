@@ -1,55 +1,78 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="32dp"
     android:background="#F5F5F5">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Set up Groq API"
-        android:textSize="24sp"
-        android:textStyle="bold"
-        android:textColor="#1A1A2E"
-        android:layout_marginBottom="24dp"/>
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="1. Go to console.groq.com\n2. Create a free account\n3. Go to API Keys\n4. Create a new key\n5. Paste it below"
-        android:textSize="15sp"
-        android:textColor="#333333"
-        android:lineSpacingExtra="6dp"
-        android:layout_marginBottom="24dp"/>
-
-    <EditText
-        android:id="@+id/groqKeyInput"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="Paste your Groq API key here"
-        android:textColor="#111111"
-        android:textColorHint="#888888"
-        android:padding="16dp"
-        android:background="#FFFFFF"
-        android:layout_marginBottom="16dp"/>
+        android:orientation="vertical"
+        android:padding="32dp">
 
-    <Button
-        android:id="@+id/confirmGroqButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Start Chatting"
-        android:backgroundTint="#1A1A2E"
-        android:textColor="#FFFFFF"
-        android:layout_marginBottom="12dp"/>
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Set up Groq API"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:textColor="#1A1A2E"
+            android:layout_marginBottom="8dp"/>
 
-    <Button
-        android:id="@+id/backButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Back"
-        android:backgroundTint="#888888"
-        android:textColor="#FFFFFF"/>
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Groq gives you a free, fast AI key that works with GAMA Entity."
+            android:textSize="14sp"
+            android:textColor="#666666"
+            android:layout_marginBottom="24dp"/>
 
-</LinearLayout>
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="How to get your free key:"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:textColor="#1A1A2E"
+            android:layout_marginBottom="12dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="1. Visit console.groq.com\n2. Sign up for a free account\n3. Go to API Keys section\n4. Click Create API Key\n5. Copy and paste it below"
+            android:textSize="14sp"
+            android:textColor="#333333"
+            android:lineSpacingExtra="8dp"
+            android:layout_marginBottom="24dp"/>
+
+        <EditText
+            android:id="@+id/groqKeyInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Paste your Groq API key here"
+            android:textColor="#111111"
+            android:textColorHint="#888888"
+            android:padding="16dp"
+            android:background="#FFFFFF"
+            android:layout_marginBottom="16dp"/>
+
+        <Button
+            android:id="@+id/confirmGroqButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Start Chatting"
+            android:backgroundTint="#1A1A2E"
+            android:textColor="#FFFFFF"
+            android:layout_marginBottom="12dp"/>
+
+        <Button
+            android:id="@+id/backButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Back"
+            android:backgroundTint="#888888"
+            android:textColor="#FFFFFF"/>
+
+    </LinearLayout>
+
+</ScrollView>

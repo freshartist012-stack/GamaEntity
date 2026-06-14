@@ -424,6 +424,40 @@ Always use actual phone number from contacts, never the name."""
         saveCurrentChat()
     }
 
+    private fun showContactPicker(action: String, message: String) {
+        val contacts = mutableListOf<Pair<String, String>>()
+        try {
+            contentResolver.query(
+                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                arrayOf(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME, ContactsContract.CommonDataKinds.Phone.NUMBER),
+                null, null, ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC"
+            )?.use {
+                while (it.moveToNext()) {
+                    val name = it.getString(0) ?: continue
+                    val number = it.getString(1) ?: continue
+                    contacts.add(Pair(name, number))
+                }
+            }
+        } catch (e: Exception) {}
+
+        val names = contacts.map { it.first }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Select Contact")
+            .setItems(names) { _, which ->
+                val number = formatNumber(contacts[which].second)
+                if (action == "whatsapp") {
+                    val uri = Uri.parse("https://api.whatsapp.com/send?phone=$number&text=${Uri.encode(message)}")
+                    try { startActivity(Intent(Intent.ACTION_VIEW, uri).apply { setPackage("com.whatsapp") }) }
+                    catch (e: Exception) { startActivity(Intent(Intent.ACTION_VIEW, uri)) }
+                } else {
+                    try { startActivity(Intent(Intent.ACTION_CALL, Uri.parse("tel:$number"))) }
+                    catch (e: Exception) { startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$number"))) }
+                }
+            }
+            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
+            .show()
+    }
+
     private fun handleAction(reply: String) {
         for (line in reply.split("\n")) {
             val t = line.trim()
@@ -443,7 +477,7 @@ Always use actual phone number from contacts, never the name."""
                 val number = lookupContact(raw)
                 val digits = number.replace("[^\\d]".toRegex(), "")
                 if (digits.length < 7 || number == raw) {
-                    addMessage("GAMA", "I couldn't find that contact. Please check the name.", false)
+                    showContactPicker("call", "")
                     return
                 }
                 try { startActivity(Intent(Intent.ACTION_CALL, Uri.parse("tel:$number"))) }
