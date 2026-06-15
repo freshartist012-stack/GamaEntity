@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="primary">#1A1A2E</color>
+    <color name="background">#F5F5F5</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="text_primary">#111111</color>
+    <color name="text_hint">#888888</color>
+    <color name="bubble_user">#1A1A2E</color>
+    <color name="bubble_gama">#FFFFFF</color>
+</resources>

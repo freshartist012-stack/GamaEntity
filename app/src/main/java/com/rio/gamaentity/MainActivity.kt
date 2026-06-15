@@ -63,6 +63,7 @@ class MainActivity : AppCompatActivity() {
     private var modelType = "native"
     private var groqKey = ""
     private var systemPromptAdded = false
+    private lateinit var typingIndicator: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -90,6 +91,7 @@ class MainActivity : AppCompatActivity() {
             loadChatHistory()
         }
 
+        typingIndicator = findViewById(R.id.typingIndicator)
         sendButton.setOnClickListener { sendMessage() }
         micButton.setOnClickListener { startVoiceInput() }
 
@@ -207,6 +209,17 @@ class MainActivity : AppCompatActivity() {
             finish()
         }
         drawerContent.addView(switchBtn)
+
+        val aboutBtn = Button(this)
+        aboutBtn.text = "About"
+        aboutBtn.setBackgroundColor(0xFF222244.toInt())
+        aboutBtn.setTextColor(0xFFFFFFFF.toInt())
+        aboutBtn.layoutParams = btnParams
+        aboutBtn.setOnClickListener {
+            startActivity(Intent(this, AboutActivity::class.java))
+            drawerLayout.closeDrawers()
+        }
+        drawerContent.addView(aboutBtn)
 
         val chatsDir = File(filesDir, "chats")
         if (chatsDir.exists()) {
@@ -348,6 +361,7 @@ Always use actual phone number from contacts, never the name."""
         messages.put(userMsg)
         sendButton.isEnabled = false
         micButton.isEnabled = false
+        typingIndicator.visibility = android.view.View.VISIBLE
 
         if (modelType == "groq" && groqKey.isNotEmpty()) callGroq() else callGama()
     }
@@ -409,6 +423,7 @@ Always use actual phone number from contacts, never the name."""
                     } catch (e: Exception) { addMessage("GAMA", "Parse error", false) }
                     sendButton.isEnabled = true
                     micButton.isEnabled = true
+                    typingIndicator.visibility = android.view.View.GONE
                 }
             }
         })
@@ -533,11 +548,13 @@ Always use actual phone number from contacts, never the name."""
         params.setMargins(16, 8, 16, 8)
         if (isUser) {
             messageView.setBackgroundResource(R.drawable.user_bubble)
-            messageView.setTextColor(resources.getColor(android.R.color.white, null))
+            messageView.setTextColor(0xFFFFFFFF.toInt())
             params.gravity = Gravity.END
         } else {
             messageView.setBackgroundResource(R.drawable.gama_bubble)
-            messageView.setTextColor(resources.getColor(android.R.color.black, null))
+            val nightMode = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
+            val textColor = if (nightMode == android.content.res.Configuration.UI_MODE_NIGHT_YES) 0xFFEEEEEE.toInt() else 0xFF111111.toInt()
+            messageView.setTextColor(textColor)
             params.gravity = Gravity.START
         }
         messageView.layoutParams = params

@@ -25,6 +25,7 @@
 
         <activity android:name=".MainActivity" android:exported="false"/>
         <activity android:name=".GroqSetupActivity" android:exported="false"/>
+        <activity android:name=".AboutActivity" android:exported="false"/>
 
     </application>
 
