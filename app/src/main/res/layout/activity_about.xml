@@ -45,8 +45,9 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Developed by Listix
-Under AfriTechX
-South Africa"
+in collaboration with AfriTechX (Pty) Ltd
+
+© 2026 AfriTechX (Pty) Ltd. All rights reserved."
         android:textSize="14sp"
         android:textColor="@color/text_hint"
         android:layout_marginBottom="32dp"/>
