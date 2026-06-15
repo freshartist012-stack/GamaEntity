@@ -330,9 +330,9 @@ class MainActivity : AppCompatActivity() {
 Be natural, first person, concise. Never fabricate.
 
 $contactsSection
-ONLY output an action command if the user EXPLICITLY asks you to perform one.
-Never suggest or trigger actions on your own.
-When asked, output the command on its own line at the end of your response:
+NEVER output action commands unless the user uses words like "send", "call", "search", "email", "open" directed at a specific task.
+A greeting like "hi" or "hello" should NEVER trigger any action.
+Only output a command when explicitly instructed. Command format when needed:
 WHATSAPP:NUMBER:MESSAGE
 CALL:NUMBER
 GMAIL:email@domain.com:Subject:Body
