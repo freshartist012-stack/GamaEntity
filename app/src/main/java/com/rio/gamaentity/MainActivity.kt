@@ -98,6 +98,9 @@ class MainActivity : AppCompatActivity() {
         checkAndRequestPermissions()
         checkAccessibilityService()
         startNewChat()
+        if (intent?.action == "android.intent.action.ASSIST") {
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ startVoiceInput() }, 800)
+        }
     }
 
     private fun checkAndRequestPermissions() {
