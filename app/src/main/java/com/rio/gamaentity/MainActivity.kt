@@ -492,7 +492,7 @@ Always use actual phone number from contacts, never the name."""
                 val number = lookupContact(it.groupValues[1].trim())
                 val digits = number.replace("[^\\d]".toRegex(), "")
                 if (digits.length < 7) { showContactPicker("call", ""); return }
-                val uri = Uri.parse("whatsapp://call?phone=$number")
+                val uri = Uri.parse("whatsapp://call?phone=+$number")
                 try { startActivity(Intent(Intent.ACTION_VIEW, uri).apply { setPackage("com.whatsapp") }) }
                 catch (e: Exception) { addMessage("GAMA", "WhatsApp not found.", false) }
                 return
@@ -511,7 +511,7 @@ Always use actual phone number from contacts, never the name."""
                 return
             }
 
-            Regex("(?i)GMAIL:([^:]+):([^:]+):(.+)", RegexOption.DOT_MATCHES_ALL).find(t)?.let {
+            Regex("(?i)GMAIL:([^:]+):([^:]+):(.+)", setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE)).find(reply)?.let {
                 val to = it.groupValues[1].trim()
                 val subject = it.groupValues[2].trim().replace(Regex("(?i)^subject:\\s*"), "")
                 val body = it.groupValues[3].trim()
