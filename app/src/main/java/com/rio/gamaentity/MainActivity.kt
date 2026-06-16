@@ -515,10 +515,13 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 return
             }
 
-            Regex("(?i)GMAIL:([^:]+):([^:]+):(.+)", setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE)).find(reply)?.let {
-                val to = it.groupValues[1].trim()
-                val subject = it.groupValues[2].trim().replace(Regex("(?i)^subject:\\s*"), "")
-                val body = it.groupValues[3].trim()
+            val gmailThree = Regex("(?i)GMAIL:([^:\\n]+):([^:\\n]+):(.+)", setOf(RegexOption.DOT_MATCHES_ALL)).find(reply)
+            val gmailTwo = Regex("(?i)GMAIL:([^:\\n]+):(.+)", setOf(RegexOption.DOT_MATCHES_ALL)).find(reply)
+            val gm = gmailThree ?: gmailTwo
+            if (gm != null) {
+                val to = gm.groupValues[1].trim()
+                val subject = if (gmailThree != null) gm.groupValues[2].trim().replace(Regex("(?i)^subject[=:\\s]+"), "").trim() else "Message"
+                val body = if (gmailThree != null) gm.groupValues[3].trim() else gm.groupValues[2].trim()
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("mailto:$to?subject=${Uri.encode(subject)}&body=${Uri.encode(body)}")))
                 return
             }
