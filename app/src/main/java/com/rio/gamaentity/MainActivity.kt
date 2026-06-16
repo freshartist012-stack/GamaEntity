@@ -289,7 +289,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         } catch (e: Exception) {}
-        return sb.toString().take(2000)
+        return sb.toString().take(8000)
     }
 
     private fun lookupContact(nameOrNumber: String): String {
@@ -334,6 +334,7 @@ NEVER output action commands unless the user uses words like "send", "call", "se
 A greeting like "hi" or "hello" should NEVER trigger any action.
 Only output a command when explicitly instructed. Command format when needed:
 WHATSAPP:NUMBER:MESSAGE
+WHATSAPP_CALL:NUMBER
 CALL:NUMBER
 GMAIL:email@domain.com:Subject:Body
 GOOGLE:search terms
@@ -487,11 +488,21 @@ Always use actual phone number from contacts, never the name."""
                 return
             }
 
+            Regex("(?i)WHATSAPP_CALL:([^\\n]+)").find(t)?.let {
+                val number = lookupContact(it.groupValues[1].trim())
+                val digits = number.replace("[^\\d]".toRegex(), "")
+                if (digits.length < 7) { showContactPicker("call", ""); return }
+                val uri = Uri.parse("whatsapp://call?phone=$number")
+                try { startActivity(Intent(Intent.ACTION_VIEW, uri).apply { setPackage("com.whatsapp") }) }
+                catch (e: Exception) { addMessage("GAMA", "WhatsApp not found.", false) }
+                return
+            }
+
             Regex("(?i)CALL:([^\\n]+)").find(t)?.let {
                 val raw = it.groupValues[1].trim()
                 val number = lookupContact(raw)
                 val digits = number.replace("[^\\d]".toRegex(), "")
-                if (digits.length < 7 || number == raw) {
+                if (digits.length < 7) {
                     showContactPicker("call", "")
                     return
                 }
@@ -500,7 +511,7 @@ Always use actual phone number from contacts, never the name."""
                 return
             }
 
-            Regex("(?i)GMAIL:([^:]+):([^:]+):(.+)").find(t)?.let {
+            Regex("(?i)GMAIL:([^:]+):([^:]+):(.+)", RegexOption.DOT_MATCHES_ALL).find(t)?.let {
                 val to = it.groupValues[1].trim()
                 val subject = it.groupValues[2].trim().replace(Regex("(?i)^subject:\\s*"), "")
                 val body = it.groupValues[3].trim()
