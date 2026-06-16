@@ -339,7 +339,8 @@ CALL:NUMBER
 GMAIL:email@domain.com:Subject:Body
 GOOGLE:search terms
 YOUTUBE:search terms
-Always use actual phone number from contacts, never the name."""
+Always use actual phone number from contacts, never the name.
+When writing emails write only the email content. Never add notes, disclaimers, or parenthetical comments. If you need more information ask the user before writing the email."""
     }
 
     private fun sendMessage() {
@@ -492,7 +493,7 @@ Always use actual phone number from contacts, never the name."""
                 val number = lookupContact(it.groupValues[1].trim())
                 val digits = number.replace("[^\\d]".toRegex(), "")
                 if (digits.length < 7) { showContactPicker("call", ""); return }
-                val uri = Uri.parse("whatsapp://call?phone=+$number")
+                val uri = Uri.parse("https://api.whatsapp.com/send?phone=$number")
                 try { startActivity(Intent(Intent.ACTION_VIEW, uri).apply { setPackage("com.whatsapp") }) }
                 catch (e: Exception) { addMessage("GAMA", "WhatsApp not found.", false) }
                 return
