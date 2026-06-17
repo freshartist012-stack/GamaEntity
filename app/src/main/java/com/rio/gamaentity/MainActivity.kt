@@ -339,7 +339,7 @@ Only output a command when explicitly instructed. Command format when needed:
 WHATSAPP:NUMBER:MESSAGE
 WHATSAPP_CALL:NUMBER
 CALL:NUMBER
-ALARM:HH:MM:Label
+ALARM:HH:MM:Label (example: ALARM:07:30:Wake up)
 GMAIL:email@domain.com:Subject line here:Body text here (ALWAYS include a meaningful subject, never write the word Subject)
 GOOGLE:search terms
 YOUTUBE:search terms
