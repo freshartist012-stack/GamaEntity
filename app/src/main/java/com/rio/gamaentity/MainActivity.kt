@@ -339,6 +339,7 @@ Only output a command when explicitly instructed. Command format when needed:
 WHATSAPP:NUMBER:MESSAGE
 WHATSAPP_CALL:NUMBER
 CALL:NUMBER
+ALARM:HH:MM:Label
 GMAIL:email@domain.com:Subject line here:Body text here (ALWAYS include a meaningful subject, never write the word Subject)
 GOOGLE:search terms
 YOUTUBE:search terms
@@ -533,6 +534,22 @@ When writing emails write only the email content. Never add notes, disclaimers, 
 
             Regex("(?i)YOUTUBE:(.+)").find(t)?.let {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=${Uri.encode(it.groupValues[1].trim())}")))
+                return
+            }
+
+            Regex("(?i)ALARM:(\d{1,2}):(\d{2})(?::(.+))?").find(t)?.let {
+                val hour = it.groupValues[1].toIntOrNull() ?: return
+                val minute = it.groupValues[2].toIntOrNull() ?: return
+                val label = it.groupValues[3].ifEmpty { "GAMA Alarm" }
+                val intent = Intent(android.provider.AlarmClock.ACTION_SET_ALARM).apply {
+                    putExtra(android.provider.AlarmClock.EXTRA_HOUR, hour)
+                    putExtra(android.provider.AlarmClock.EXTRA_MINUTES, minute)
+                    putExtra(android.provider.AlarmClock.EXTRA_MESSAGE, label)
+                    putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, false)
+                }
+                try { startActivity(intent) } catch (e: Exception) {
+                    addMessage("GAMA", "Could not set alarm.", false)
+                }
                 return
             }
         }
