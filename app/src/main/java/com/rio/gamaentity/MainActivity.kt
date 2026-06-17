@@ -537,7 +537,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 return
             }
 
-            Regex("(?i)ALARM:(\d{1,2}):(\d{2})(?::(.+))?").find(t)?.let {
+            Regex("(?i)ALARM:(\\d{1,2}):(\\d{2})(?::(.+))?").find(t)?.let {
                 val hour = it.groupValues[1].toIntOrNull() ?: return
                 val minute = it.groupValues[2].toIntOrNull() ?: return
                 val label = it.groupValues[3].ifEmpty { "GAMA Alarm" }
