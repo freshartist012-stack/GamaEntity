@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="primary">#B8860B</color>
+    <color name="primary">#CEBAA2</color>
     <color name="background">#121212</color>
     <color name="surface">#1E1E1E</color>
     <color name="text_primary">#EEEEEE</color>
     <color name="text_hint">#777777</color>
-    <color name="bubble_user">#B8860B</color>
+    <color name="bubble_user">#CEBAA2</color>
     <color name="bubble_gama">#1E1E1E</color>
 </resources>
