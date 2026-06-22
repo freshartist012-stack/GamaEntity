@@ -95,6 +95,7 @@ class MainActivity : AppCompatActivity() {
         sendButton.setOnClickListener { sendMessage() }
         micButton.setOnClickListener { startVoiceInput() }
 
+        copyDictionaryIfNeeded()
         checkAndRequestPermissions()
         checkAccessibilityService()
         startNewChat()
@@ -555,46 +556,130 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         }
     }
 
+    private fun lookupDefinition(word: String): String? {
+        return try {
+            val db = android.database.sqlite.SQLiteDatabase.openDatabase(
+                filesDir.absolutePath + "/dictionary.db",
+                null, android.database.sqlite.SQLiteDatabase.OPEN_READONLY
+            )
+            val cursor = db.rawQuery("SELECT definition FROM dictionary WHERE word = ? LIMIT 1", arrayOf(word.lowercase().trim()))
+            val result = if (cursor.moveToFirst()) cursor.getString(0) else null
+            cursor.close()
+            db.close()
+            result
+        } catch (e: Exception) { null }
+    }
+
+    private fun copyDictionaryIfNeeded() {
+        val dest = java.io.File(filesDir, "dictionary.db")
+        if (!dest.exists()) {
+            try {
+                assets.open("dictionary.db").use { input ->
+                    dest.outputStream().use { output -> input.copyTo(output) }
+                }
+            } catch (e: Exception) {}
+        }
+    }
+
     private fun addMessage(sender: String, text: String, isUser: Boolean) {
+        val wrapper = LinearLayout(this)
+        wrapper.orientation = LinearLayout.VERTICAL
+        val wrapperParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        wrapperParams.setMargins(16, 8, 16, 4)
+        wrapperParams.gravity = if (isUser) Gravity.END else Gravity.START
+        wrapper.layoutParams = wrapperParams
+
         val messageView = TextView(this)
         messageView.text = text
         messageView.setPadding(24, 16, 24, 16)
         messageView.textSize = 16f
         messageView.setTextIsSelectable(true)
-        messageView.setOnLongClickListener {
-            val options = if (!isUser && ttsReady)
-                arrayOf("Copy", "Read aloud")
-            else
-                arrayOf("Copy")
-            AlertDialog.Builder(this)
-                .setItems(options) { _, which ->
-                    when (which) {
-                        0 -> {
-                            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            clipboard.setPrimaryClip(ClipData.newPlainText("GAMA", text))
-                            Toast.makeText(this, "Copied", Toast.LENGTH_SHORT).show()
-                        }
-                        1 -> speakText(text)
-                    }
-                }.show()
-            true
-        }
-        val params = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-        params.setMargins(16, 8, 16, 8)
+        val msgParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         if (isUser) {
             messageView.setBackgroundResource(R.drawable.user_bubble)
             messageView.setTextColor(0xFFFFFFFF.toInt())
-            params.gravity = Gravity.END
+            msgParams.gravity = Gravity.END
         } else {
             messageView.setBackgroundResource(R.drawable.gama_bubble)
             val nightMode = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK
-            val textColor = if (nightMode == android.content.res.Configuration.UI_MODE_NIGHT_YES) 0xFFEEEEEE.toInt() else 0xFF111111.toInt()
-            messageView.setTextColor(textColor)
-            params.gravity = Gravity.START
+            messageView.setTextColor(if (nightMode == android.content.res.Configuration.UI_MODE_NIGHT_YES) 0xFFEEEEEE.toInt() else 0xFF111111.toInt())
+            msgParams.gravity = Gravity.START
         }
-        messageView.layoutParams = params
-        messagesContainer.addView(messageView)
+        messageView.layoutParams = msgParams
+        wrapper.addView(messageView)
+
+        val buttonsRow = LinearLayout(this)
+        buttonsRow.orientation = LinearLayout.HORIZONTAL
+        val btnRowParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        btnRowParams.gravity = if (isUser) Gravity.END else Gravity.START
+        buttonsRow.layoutParams = btnRowParams
+
+        val copyBtn = TextView(this)
+        copyBtn.text = "Copy"
+        copyBtn.textSize = 11f
+        copyBtn.setPadding(12, 4, 12, 4)
+        copyBtn.setTextColor(0xFF888888.toInt())
+        copyBtn.setOnClickListener {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.setPrimaryClip(ClipData.newPlainText("GAMA", text))
+            Toast.makeText(this, "Copied", Toast.LENGTH_SHORT).show()
+        }
+        buttonsRow.addView(copyBtn)
+
+        if (!isUser && ttsReady) {
+            val readBtn = TextView(this)
+            readBtn.text = "Read aloud"
+            readBtn.textSize = 11f
+            readBtn.setPadding(12, 4, 12, 4)
+            readBtn.setTextColor(0xFF888888.toInt())
+            readBtn.setOnClickListener { speakText(text) }
+            buttonsRow.addView(readBtn)
+        }
+
+        val defineBtn = TextView(this)
+        defineBtn.text = "Define"
+        defineBtn.textSize = 11f
+        defineBtn.setPadding(12, 4, 12, 4)
+        defineBtn.setTextColor(0xFF888888.toInt())
+        defineBtn.setOnClickListener {
+            val selected = messageView.text.toString()
+            val start = messageView.selectionStart
+            val end = messageView.selectionEnd
+            val word = if (start >= 0 && end > start) selected.substring(start, end).trim()
+                       else {
+                           val input = android.widget.EditText(this)
+                           input.hint = "Enter word to define"
+                           AlertDialog.Builder(this)
+                               .setTitle("Define a word")
+                               .setView(input)
+                               .setPositiveButton("Define") { _, _ ->
+                                   val w = input.text.toString().trim()
+                                   if (w.isNotEmpty()) showDefinition(w)
+                               }
+                               .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
+                               .show()
+                           return@setOnClickListener
+                       }
+            if (word.isNotEmpty()) showDefinition(word)
+        }
+        buttonsRow.addView(defineBtn)
+        wrapper.addView(buttonsRow)
+
+        messagesContainer.addView(wrapper)
         scrollView.post { scrollView.fullScroll(ScrollView.FOCUS_DOWN) }
+    }
+
+    private fun showDefinition(word: String) {
+        val definition = lookupDefinition(word)
+        if (definition != null) {
+            AlertDialog.Builder(this)
+                .setTitle(word.replaceFirstChar { it.uppercase() })
+                .setMessage(definition)
+                .setPositiveButton("OK") { d, _ -> d.dismiss() }
+                .show()
+        } else {
+            Toast.makeText(this, ""$word" not found in dictionary", Toast.LENGTH_SHORT).show()
+        }
     }
 
     override fun onDestroy() {
