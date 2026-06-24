@@ -678,7 +678,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 .setPositiveButton("OK") { d, _ -> d.dismiss() }
                 .show()
         } else {
-            Toast.makeText(this, ""$word" not found in dictionary", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "$word not found in dictionary", Toast.LENGTH_SHORT).show()
         }
     }
 
