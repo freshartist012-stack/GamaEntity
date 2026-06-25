@@ -562,8 +562,8 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 filesDir.absolutePath + "/dictionary.db",
                 null, android.database.sqlite.SQLiteDatabase.OPEN_READONLY
             )
-            val cursor = db.rawQuery("SELECT definition FROM dictionary WHERE word = ? LIMIT 1", arrayOf(word.lowercase().trim()))
-            val result = if (cursor.moveToFirst()) cursor.getString(0) else null
+            val cursor = db.rawQuery("SELECT definition, wordtype FROM entries WHERE word = ? LIMIT 1", arrayOf(word.lowercase().trim()))
+            val result = if (cursor.moveToFirst()) { val type = cursor.getString(1); val def = cursor.getString(0); if (type.isNotEmpty()) "($type)\n\n$def" else def } else null
             cursor.close()
             db.close()
             result
