@@ -8,7 +8,8 @@ class GamaAccessibilityService : AccessibilityService() {
 
     companion object {
         var instance: GamaAccessibilityService? = null
-        var pendingSend = false
+        var pendingWhatsAppSend = false
+        var pendingAlarmDismiss = false
     }
 
     override fun onServiceConnected() {
@@ -16,34 +17,40 @@ class GamaAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        if (!pendingSend) return
-        if (event?.packageName != "com.whatsapp") return
-
+        val pkg = event?.packageName?.toString() ?: return
         val root = rootInActiveWindow ?: return
-        val sendButton = findSendButton(root)
-        if (sendButton != null) {
-            sendButton.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-            pendingSend = false
+
+        if (pendingWhatsAppSend && pkg == "com.whatsapp") {
+            val sendButton = findNodeByDescription(root, listOf("send", "Send"))
+            if (sendButton != null) {
+                sendButton.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                pendingWhatsAppSend = false
+                performGlobalAction(GLOBAL_ACTION_BACK)
+            }
+        }
+
+        if (pendingAlarmDismiss && (pkg.contains("clock") || pkg.contains("alarm") || pkg.contains("deskclock"))) {
+            val dismissButton = findNodeByDescription(root, listOf("dismiss", "Dismiss", "stop", "Stop", "turn off", "Turn off"))
+            if (dismissButton != null) {
+                dismissButton.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                pendingAlarmDismiss = false
+            }
         }
     }
 
-    private fun findSendButton(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+    private fun findNodeByDescription(node: AccessibilityNodeInfo, keywords: List<String>): AccessibilityNodeInfo? {
         val desc = node.contentDescription?.toString()?.lowercase() ?: ""
+        val text = node.text?.toString()?.lowercase() ?: ""
         val id = node.viewIdResourceName ?: ""
-        if (desc.contains("send") || id.contains("send")) return node
+        if (keywords.any { desc.contains(it.lowercase()) || text.contains(it.lowercase()) || id.lowercase().contains(it.lowercase()) }) return node
         for (i in 0 until node.childCount) {
             val child = node.getChild(i) ?: continue
-            val result = findSendButton(child)
+            val result = findNodeByDescription(child, keywords)
             if (result != null) return result
         }
         return null
     }
 
-    override fun onInterrupt() {
-        instance = null
-    }
-
-    override fun onDestroy() {
-        instance = null
-    }
+    override fun onInterrupt() { instance = null }
+    override fun onDestroy() { instance = null }
 }

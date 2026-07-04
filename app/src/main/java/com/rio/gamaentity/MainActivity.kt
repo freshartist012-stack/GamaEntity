@@ -341,6 +341,7 @@ WHATSAPP:NUMBER:MESSAGE
 WHATSAPP_CALL:NUMBER
 CALL:NUMBER
 ALARM:HH:MM:Label (example: ALARM:07:30:Wake up)
+DISMISS_ALARM (when user asks to dismiss or turn off a ringing alarm)
 GMAIL:email@domain.com:Subject line here:Body text here (ALWAYS include a meaningful subject, never write the word Subject)
 GOOGLE:search terms
 YOUTUBE:search terms
@@ -488,7 +489,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 val number = lookupContact(it.groupValues[1].trim())
                 val message = it.groupValues[2].trim()
                 val uri = Uri.parse("https://api.whatsapp.com/send?phone=$number&text=${Uri.encode(message)}")
-                GamaAccessibilityService.pendingSend = true
+                GamaAccessibilityService.pendingWhatsAppSend = true
                 try { startActivity(Intent(Intent.ACTION_VIEW, uri).apply { setPackage("com.whatsapp") }) }
                 catch (e: Exception) { try { startActivity(Intent(Intent.ACTION_VIEW, uri)) } catch (e2: Exception) {} }
                 return
@@ -535,6 +536,12 @@ When writing emails write only the email content. Never add notes, disclaimers, 
 
             Regex("(?i)YOUTUBE:(.+)").find(t)?.let {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=${Uri.encode(it.groupValues[1].trim())}")))
+                return
+            }
+
+            Regex("(?i)DISMISS_ALARM").find(t)?.let {
+                GamaAccessibilityService.pendingAlarmDismiss = true
+                addMessage("GAMA", "Dismissing alarm...", false)
                 return
             }
 
