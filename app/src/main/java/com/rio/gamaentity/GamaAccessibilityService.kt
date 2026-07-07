@@ -25,7 +25,13 @@ class GamaAccessibilityService : AccessibilityService() {
             if (sendButton != null) {
                 sendButton.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 pendingWhatsAppSend = false
-                performGlobalAction(GLOBAL_ACTION_BACK)
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    performGlobalAction(GLOBAL_ACTION_BACK)
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        val launchIntent = packageManager?.getLaunchIntentForPackage("com.rio.gamaentity")
+                        if (launchIntent != null) startActivity(launchIntent)
+                    }, 500)
+                }, 1000)
             }
         }
 

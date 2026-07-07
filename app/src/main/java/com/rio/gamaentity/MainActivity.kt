@@ -555,7 +555,12 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                     putExtra(android.provider.AlarmClock.EXTRA_MESSAGE, label)
                     putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, false)
                 }
-                try { startActivity(intent) } catch (e: Exception) {
+                try {
+                    startActivity(intent)
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        GamaAccessibilityService.pendingAlarmDismiss = false
+                    }, 3000)
+                } catch (e: Exception) {
                     addMessage("GAMA", "Could not set alarm.", false)
                 }
                 return
