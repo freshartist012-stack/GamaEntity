@@ -1,6 +1,9 @@
 package com.rio.gamaentity
 
 import android.accessibilityservice.AccessibilityService
+import android.content.Intent
+import android.os.Handler
+import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 
@@ -21,37 +24,47 @@ class GamaAccessibilityService : AccessibilityService() {
         val root = rootInActiveWindow ?: return
 
         if (pendingWhatsAppSend && pkg == "com.whatsapp") {
-            val sendButton = findNodeByDescription(root, listOf("send", "Send"))
+            val sendButton = findNodeByKeywords(root, listOf("send", "Send"))
             if (sendButton != null) {
                 sendButton.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 pendingWhatsAppSend = false
-                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                Handler(Looper.getMainLooper()).postDelayed({
                     performGlobalAction(GLOBAL_ACTION_BACK)
-                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                        val launchIntent = packageManager?.getLaunchIntentForPackage("com.rio.gamaentity")
-                        if (launchIntent != null) startActivity(launchIntent)
-                    }, 500)
-                }, 1000)
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        val intent = packageManager?.getLaunchIntentForPackage("com.rio.gamaentity")
+                        if (intent != null) {
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            startActivity(intent)
+                        }
+                    }, 600)
+                }, 1200)
             }
         }
 
         if (pendingAlarmDismiss && (pkg.contains("clock") || pkg.contains("alarm") || pkg.contains("deskclock"))) {
-            val dismissButton = findNodeByDescription(root, listOf("dismiss", "Dismiss", "stop", "Stop", "turn off", "Turn off"))
+            val dismissButton = findNodeByKeywords(root, listOf("dismiss", "stop", "turn off"))
             if (dismissButton != null) {
                 dismissButton.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 pendingAlarmDismiss = false
+                Handler(Looper.getMainLooper()).postDelayed({
+                    val intent = packageManager?.getLaunchIntentForPackage("com.rio.gamaentity")
+                    if (intent != null) {
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        startActivity(intent)
+                    }
+                }, 800)
             }
         }
     }
 
-    private fun findNodeByDescription(node: AccessibilityNodeInfo, keywords: List<String>): AccessibilityNodeInfo? {
+    private fun findNodeByKeywords(node: AccessibilityNodeInfo, keywords: List<String>): AccessibilityNodeInfo? {
         val desc = node.contentDescription?.toString()?.lowercase() ?: ""
         val text = node.text?.toString()?.lowercase() ?: ""
-        val id = node.viewIdResourceName ?: ""
-        if (keywords.any { desc.contains(it.lowercase()) || text.contains(it.lowercase()) || id.lowercase().contains(it.lowercase()) }) return node
+        val id = node.viewIdResourceName?.lowercase() ?: ""
+        if (keywords.any { desc.contains(it) || text.contains(it) || id.contains(it) }) return node
         for (i in 0 until node.childCount) {
             val child = node.getChild(i) ?: continue
-            val result = findNodeByDescription(child, keywords)
+            val result = findNodeByKeywords(child, keywords)
             if (result != null) return result
         }
         return null

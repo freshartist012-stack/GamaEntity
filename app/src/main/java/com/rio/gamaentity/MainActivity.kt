@@ -558,7 +558,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 try {
                     startActivity(intent)
                     android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                        GamaAccessibilityService.pendingAlarmDismiss = false
+                        startActivity(Intent(this, MainActivity::class.java).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP) })
                     }, 3000)
                 } catch (e: Exception) {
                     addMessage("GAMA", "Could not set alarm.", false)
