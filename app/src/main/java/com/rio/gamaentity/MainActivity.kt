@@ -321,6 +321,7 @@ class MainActivity : AppCompatActivity() {
         val d = raw.replace("[^\\d]".toRegex(), "")
         return when {
             d.startsWith("27") && d.length >= 11 -> d
+            d.startsWith("270") && d.length == 12 -> "27${d.substring(3)}"
             d.startsWith("0") && d.length == 10 -> "27${d.substring(1)}"
             d.length == 9 -> "27$d"
             else -> d
