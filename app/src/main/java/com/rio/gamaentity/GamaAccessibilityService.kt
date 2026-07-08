@@ -21,27 +21,30 @@ class GamaAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val pkg = event?.packageName?.toString() ?: return
-        val root = rootInActiveWindow ?: return
 
         if (pendingWhatsAppSend && pkg == "com.whatsapp") {
-            val sendButton = findNodeByKeywords(root, listOf("send", "Send"))
-            if (sendButton != null) {
-                sendButton.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-                pendingWhatsAppSend = false
-                Handler(Looper.getMainLooper()).postDelayed({
-                    performGlobalAction(GLOBAL_ACTION_BACK)
+            Handler(Looper.getMainLooper()).postDelayed({
+                val root = rootInActiveWindow ?: return@postDelayed
+                val sendNodes = root.findAccessibilityNodeInfosByViewId("com.whatsapp:id/send")
+                if (sendNodes != null && sendNodes.isNotEmpty()) {
+                    sendNodes[0].performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                    pendingWhatsAppSend = false
                     Handler(Looper.getMainLooper()).postDelayed({
-                        val intent = packageManager?.getLaunchIntentForPackage("com.rio.gamaentity")
-                        if (intent != null) {
-                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            startActivity(intent)
-                        }
-                    }, 600)
-                }, 1200)
-            }
+                        performGlobalAction(GLOBAL_ACTION_BACK)
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            val intent = packageManager?.getLaunchIntentForPackage("com.rio.gamaentity")
+                            if (intent != null) {
+                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                startActivity(intent)
+                            }
+                        }, 600)
+                    }, 1000)
+                }
+            }, 2000)
         }
 
         if (pendingAlarmDismiss && (pkg.contains("clock") || pkg.contains("alarm") || pkg.contains("deskclock"))) {
+            val root = rootInActiveWindow ?: return
             val dismissButton = findNodeByKeywords(root, listOf("dismiss", "stop", "turn off"))
             if (dismissButton != null) {
                 dismissButton.performAction(AccessibilityNodeInfo.ACTION_CLICK)
