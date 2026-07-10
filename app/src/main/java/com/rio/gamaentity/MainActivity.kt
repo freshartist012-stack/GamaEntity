@@ -386,7 +386,8 @@ When writing emails write only the email content. Never add notes, disclaimers, 
             client.newCall(req).enqueue(object : Callback {
                 override fun onFailure(call: Call, e: IOException) {
                     runOnUiThread {
-                        addMessage("GAMA", "Unable to connect. Please check your internet connection.", false)
+                        if (messages.length() > 0) messages.remove(messages.length() - 1)
+                    addMessage("GAMA", "Unable to connect. Please check your internet connection.", false)
                         sendButton.isEnabled = true
                         micButton.isEnabled = true
                     }
@@ -418,6 +419,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         client.newCall(req).enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 runOnUiThread {
+                    if (messages.length() > 0) messages.remove(messages.length() - 1)
                     addMessage("GAMA", "Unable to connect. Please check your internet connection.", false)
                     sendButton.isEnabled = true
                     micButton.isEnabled = true
