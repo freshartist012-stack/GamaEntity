@@ -95,9 +95,7 @@ class MainActivity : AppCompatActivity() {
         sendButton.setOnClickListener { sendMessage() }
         micButton.setOnClickListener { startVoiceInput() }
 
-        copyDictionaryIfNeeded()
-        checkAndRequestPermissions()
-        checkAccessibilityService()
+        showDataDisclosureIfNeeded()
         startNewChat()
         if (intent?.action == "android.intent.action.ASSIST") {
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ startVoiceInput() }, 800)
@@ -585,6 +583,30 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         } catch (e: Exception) { null }
     }
 
+
+    private fun showDataDisclosureIfNeeded() {
+        val prefs = getSharedPreferences("gama_prefs", MODE_PRIVATE)
+        if (prefs.getBoolean("data_consent_given", false)) {
+            copyDictionaryIfNeeded()
+            checkAndRequestPermissions()
+            checkAccessibilityService()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Data Usage Disclosure")
+            .setMessage("GAMA Entity collects and transmits your contact names and phone numbers to Groq (api.groq.com) to enable features like sending WhatsApp messages and making calls by name. This data is sent only when you request an action involving a contact.\n\nBy tapping Accept, you consent to this data usage.")
+            .setCancelable(false)
+            .setPositiveButton("Accept") { _, _ ->
+                prefs.edit().putBoolean("data_consent_given", true).apply()
+                copyDictionaryIfNeeded()
+                checkAndRequestPermissions()
+                checkAccessibilityService()
+            }
+            .setNegativeButton("Decline") { _, _ ->
+                finish()
+            }
+            .show()
+    }
     private fun copyDictionaryIfNeeded() {
         val dest = java.io.File(filesDir, "dictionary.db")
         if (!dest.exists()) {
