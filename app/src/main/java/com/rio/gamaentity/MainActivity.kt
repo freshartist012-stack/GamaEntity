@@ -406,7 +406,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
 
     private fun callGroq() {
         val body = JSONObject()
-        body.put("model", "qwen/qwen3.6-27b")
+        body.put("model", "openai/gpt-oss-20b")
         body.put("messages", messages)
         body.put("max_tokens", 1000)
         val req = Request.Builder()
