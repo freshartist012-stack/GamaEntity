@@ -428,7 +428,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 runOnUiThread {
                     try {
                         val raw = JSONObject(b ?: "").getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content")
-                        val clean = raw.replace(Regex("<think>[\s\S]*?</think>"), "").trim()
+                        val clean = raw.replace(Regex("<think>[\\s\\S]*?</think>"), "").trim()
                         finishResponse(clean)
                     } catch (e: Exception) { addMessage("GAMA", "Parse error", false) }
                     sendButton.isEnabled = true
