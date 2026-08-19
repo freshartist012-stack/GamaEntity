@@ -406,7 +406,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
 
     private fun callGroq() {
         val body = JSONObject()
-        body.put("model", "llama-3.3-70b-versatile")
+        body.put("model", "qwen/qwen3.6-27b")
         body.put("messages", messages)
         body.put("max_tokens", 1000)
         val req = Request.Builder()
@@ -594,7 +594,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         }
         AlertDialog.Builder(this)
             .setTitle("Data Usage Disclosure")
-            .setMessage("GAMA Entity collects and transmits your contact names and phone numbers to Groq (api.groq.com) to enable features like sending WhatsApp messages and making calls by name. This data is sent only when you request an action involving a contact.\n\nBy tapping Accept, you consent to this data usage.")
+            .setMessage("GAMA Entity collects and transmits the following data:\n\n• Contact names and phone numbers are sent to Groq (api.groq.com) to enable WhatsApp messaging and calls by name.\n• The Accessibility Service reads the WhatsApp screen solely to tap the send button. It does not read, store, or transmit any message content.\n\nBy tapping Accept, you consent to this data usage.")
             .setCancelable(false)
             .setPositiveButton("Accept") { _, _ ->
                 prefs.edit().putBoolean("data_consent_given", true).apply()
