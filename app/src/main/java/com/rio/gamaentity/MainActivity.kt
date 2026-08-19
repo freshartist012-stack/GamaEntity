@@ -406,7 +406,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
 
     private fun callGroq() {
         val body = JSONObject()
-        body.put("model", "llama-3.1-8b-instant")
+        body.put("model", "qwen/qwen3.6-27b")
         body.put("messages", messages)
         body.put("max_tokens", 1000)
         val req = Request.Builder()
@@ -427,8 +427,9 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 val b = response.body?.string()
                 runOnUiThread {
                     try {
-                        finishResponse(JSONObject(b ?: "").getJSONArray("choices")
-                            .getJSONObject(0).getJSONObject("message").getString("content"))
+                        val raw = JSONObject(b ?: "").getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content")
+                        val clean = raw.replace(Regex("<think>[\s\S]*?</think>"), "").trim()
+                        finishResponse(clean)
                     } catch (e: Exception) { addMessage("GAMA", "Parse error", false) }
                     sendButton.isEnabled = true
                     micButton.isEnabled = true
