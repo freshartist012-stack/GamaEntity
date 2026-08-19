@@ -430,7 +430,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                         val raw = JSONObject(b ?: "").getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content")
                         val clean = raw.replace(Regex("<think>[\\s\\S]*?</think>"), "").trim()
                         finishResponse(clean)
-                    } catch (e: Exception) { addMessage("GAMA", "Parse error", false) }
+                    } catch (e: Exception) { addMessage("GAMA", "Error: ${e.message} | Response: ${b?.take(100)}", false) }
                     sendButton.isEnabled = true
                     micButton.isEnabled = true
                     typingIndicator.visibility = android.view.View.GONE
