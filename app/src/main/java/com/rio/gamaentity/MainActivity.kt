@@ -212,28 +212,6 @@ class MainActivity : AppCompatActivity() {
         }
         drawerContent.addView(switchBtn)
 
-        val setupWaBtn = Button(this)
-        setupWaBtn.text = "Setup WhatsApp Send Playback"
-        setupWaBtn.setBackgroundColor(0xFF2E7D32.toInt())
-        setupWaBtn.setTextColor(0xFFFFFFFF.toInt())
-        setupWaBtn.layoutParams = btnParams
-        setupWaBtn.setOnClickListener {
-            drawerLayout.closeDrawers()
-            showSetupInstructions("whatsapp")
-        }
-        drawerContent.addView(setupWaBtn)
-
-        val setupAlarmBtn = Button(this)
-        setupAlarmBtn.text = "Setup Alarm Return Playback"
-        setupAlarmBtn.setBackgroundColor(0xFF1565C0.toInt())
-        setupAlarmBtn.setTextColor(0xFFFFFFFF.toInt())
-        setupAlarmBtn.layoutParams = btnParams
-        setupAlarmBtn.setOnClickListener {
-            drawerLayout.closeDrawers()
-            showSetupInstructions("alarm")
-        }
-        drawerContent.addView(setupAlarmBtn)
-
         val aboutBtn = Button(this)
         aboutBtn.text = "About"
         aboutBtn.setBackgroundColor(0xFF222244.toInt())
@@ -506,51 +484,81 @@ When writing emails write only the email content. Never add notes, disclaimers, 
             .show()
     }
 
-    private fun showSetupInstructions(target: String) {
-        val appName = if (target == "whatsapp") "WhatsApp" else "Clock"
-        val steps = if (target == "whatsapp")
-            "1. WhatsApp will open with a test draft\n2. Tap the Send button\n3. Press Back to return\n4. Tap Entity in recent apps\n\nGAMA will record your taps for future use."
-        else
-            "1. Clock app will open\n2. Tap Dismiss on any alarm\n3. Return to GAMA Entity\n\nGAMA will record your taps for future use."
 
-        AlertDialog.Builder(this)
-            .setTitle("Setup $appName Playback")
-            .setMessage("Follow these steps and GAMA will record your taps:\n\n$steps")
-            .setPositiveButton("Start Recording") { _, _ ->
-                startRecording(target)
+
+
+
+
+
+
+    private fun showWhatsAppConfirmation(contactName: String, message: String, number: String) {
+        val editText = android.widget.EditText(this)
+        editText.setText(message)
+        editText.setSelection(message.length)
+
+        val layout = android.widget.LinearLayout(this)
+        layout.orientation = android.widget.LinearLayout.VERTICAL
+        layout.setPadding(48, 16, 48, 0)
+
+        val label = android.widget.TextView(this)
+        label.text = "To: $contactName"
+        label.textSize = 14f
+        label.setTextColor(0xFF555555.toInt())
+        layout.addView(label)
+        layout.addView(editText)
+
+        val voiceHint = android.widget.TextView(this)
+        voiceHint.text = "Say: 'confirm', 'cancel', or 'edit'"
+        voiceHint.textSize = 12f
+        voiceHint.setTextColor(0xFF888888.toInt())
+        voiceHint.setPadding(0, 8, 0, 0)
+        layout.addView(voiceHint)
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Send WhatsApp Message?")
+            .setView(layout)
+            .setCancelable(false)
+            .setPositiveButton("Send") { _, _ ->
+                val finalMessage = editText.text.toString().trim()
+                val uri = android.net.Uri.parse("https://api.whatsapp.com/send?phone=$number&text=${android.net.Uri.encode(finalMessage)}")
+                GamaAccessibilityService.pendingWhatsAppSend = true
+                try { startActivity(Intent(Intent.ACTION_VIEW, uri).apply { setPackage("com.whatsapp") }) }
+                catch (e: Exception) { try { startActivity(Intent(Intent.ACTION_VIEW, uri)) } catch (e2: Exception) {} }
+            }
+            .setNeutralButton("Edit by voice") { d, _ ->
+                d.dismiss()
+                startVoiceInput()
             }
             .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
-            .show()
-    }
+            .create()
 
+        dialog.show()
 
-    private fun startRecording(target: String) {
-        val prefs = getSharedPreferences("gama_prefs", MODE_PRIVATE)
-        if (target == "whatsapp") {
-            GamaAccessibilityService.savedWhatsAppTaps.clear()
-            val input = android.widget.EditText(this)
-            input.hint = "Enter a real number (e.g. 27821234567)"
-            AlertDialog.Builder(this)
-                .setTitle("Test Number for Recording")
-                .setMessage("Enter a WhatsApp number to use during the recording setup:")
-                .setView(input)
-                .setPositiveButton("Open WhatsApp") { _, _ ->
-                    val testNumber = input.text.toString().trim().ifEmpty { "27821234567" }
-                    val uri = Uri.parse("https://api.whatsapp.com/send?phone=$testNumber&text=Test+message")
-                    try { startActivity(Intent(Intent.ACTION_VIEW, uri).apply { setPackage("com.whatsapp") }) }
-                    catch (e: Exception) { addMessage("GAMA", "WhatsApp not found.", false) }
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            startVoiceConfirmation { response ->
+                when {
+                    response.contains("confirm") || response.contains("send") || response.contains("yes") -> {
+                        dialog.dismiss()
+                        val finalMessage = editText.text.toString().trim()
+                        val uri = android.net.Uri.parse("https://api.whatsapp.com/send?phone=$number&text=${android.net.Uri.encode(finalMessage)}")
+                        GamaAccessibilityService.pendingWhatsAppSend = true
+                        try { startActivity(Intent(Intent.ACTION_VIEW, uri).apply { setPackage("com.whatsapp") }) }
+                        catch (e: Exception) { try { startActivity(Intent(Intent.ACTION_VIEW, uri)) } catch (e2: Exception) {} }
+                    }
+                    response.contains("edit") || response.contains("change") -> {
+                        dialog.dismiss()
+                        startVoiceInput()
+                    }
+                    response.contains("cancel") || response.contains("no") -> {
+                        dialog.dismiss()
+                    }
+                    response.isNotEmpty() -> {
+                        editText.setText(response)
+                    }
                 }
-                .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
-                .show()
-        } else {
-            GamaAccessibilityService.savedAlarmTaps.clear()
-            startActivity(Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS))
-        }
-        addMessage("GAMA", "Recording mode active. Perform the steps then return to GAMA.", false)
-        prefs.edit().putBoolean("recording_$target", true).apply()
+            }
+        }, 800)
     }
-
-
 
     private fun handleAction(reply: String) {
         for (line in reply.split("\n")) {
@@ -560,17 +568,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 val number = lookupContact(it.groupValues[1].trim())
                 val message = it.groupValues[2].trim()
                 val uri = Uri.parse("https://api.whatsapp.com/send?phone=$number&text=${Uri.encode(message)}")
-                AlertDialog.Builder(this)
-                    .setTitle("Send WhatsApp Message")
-                    .setMessage("To: ${it.groupValues[1].trim()}\nMessage: $message\n\nConfirm to send.")
-                    .setCancelable(false)
-                    .setPositiveButton("Confirm") { _, _ ->
-                        GamaAccessibilityService.pendingWhatsAppSend = true
-                        try { startActivity(Intent(Intent.ACTION_VIEW, uri).apply { setPackage("com.whatsapp") }) }
-                        catch (e: Exception) { try { startActivity(Intent(Intent.ACTION_VIEW, uri)) } catch (e2: Exception) {} }
-                    }
-                    .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
-                    .show()
+                showWhatsAppConfirmation(it.groupValues[1].trim(), message, number)
                 return
             }
 

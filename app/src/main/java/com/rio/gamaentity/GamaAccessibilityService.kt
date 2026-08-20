@@ -1,12 +1,11 @@
 package com.rio.gamaentity
 
 import android.accessibilityservice.AccessibilityService
-import android.accessibilityservice.GestureDescription
 import android.content.Intent
-import android.graphics.Path
 import android.os.Handler
 import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 
 class GamaAccessibilityService : AccessibilityService() {
 
@@ -14,11 +13,6 @@ class GamaAccessibilityService : AccessibilityService() {
         var instance: GamaAccessibilityService? = null
         var pendingWhatsAppSend = false
         var pendingAlarmDismiss = false
-        var recordingMode = false
-        var recordTarget = "" // "whatsapp" or "alarm"
-        var savedWhatsAppTaps = mutableListOf<Pair<Float, Float>>()
-        var savedAlarmTaps = mutableListOf<Pair<Float, Float>>()
-        var onTapRecorded: ((Float, Float) -> Unit)? = null
     }
 
     override fun onServiceConnected() {
@@ -29,52 +23,54 @@ class GamaAccessibilityService : AccessibilityService() {
         val pkg = event?.packageName?.toString() ?: return
 
         if (pendingWhatsAppSend && pkg == "com.whatsapp") {
-            val taps = savedWhatsAppTaps
-            if (taps.isNotEmpty()) {
-                replayTaps(taps) {
+            Handler(Looper.getMainLooper()).postDelayed({
+                val root = rootInActiveWindow ?: return@postDelayed
+                val sendNodes = root.findAccessibilityNodeInfosByViewId("com.whatsapp:id/send")
+                if (sendNodes != null && sendNodes.isNotEmpty()) {
+                    sendNodes[0].performAction(AccessibilityNodeInfo.ACTION_CLICK)
                     pendingWhatsAppSend = false
                     Handler(Looper.getMainLooper()).postDelayed({
-                        val intent = packageManager?.getLaunchIntentForPackage("com.rio.gamaentity")
-                        if (intent != null) {
-                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            startActivity(intent)
-                        }
-                    }, 800)
+                        performGlobalAction(GLOBAL_ACTION_BACK)
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            val intent = packageManager?.getLaunchIntentForPackage("com.rio.gamaentity")
+                            if (intent != null) {
+                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                startActivity(intent)
+                            }
+                        }, 600)
+                    }, 1000)
                 }
-            }
+            }, 2000)
         }
 
         if (pendingAlarmDismiss && (pkg.contains("clock") || pkg.contains("alarm") || pkg.contains("deskclock"))) {
-            val taps = savedAlarmTaps
-            if (taps.isNotEmpty()) {
-                replayTaps(taps) {
-                    pendingAlarmDismiss = false
-                    Handler(Looper.getMainLooper()).postDelayed({
-                        val intent = packageManager?.getLaunchIntentForPackage("com.rio.gamaentity")
-                        if (intent != null) {
-                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            startActivity(intent)
-                        }
-                    }, 800)
-                }
+            val root = rootInActiveWindow ?: return
+            val dismissButton = findNodeByKeywords(root, listOf("dismiss", "stop", "turn off"))
+            if (dismissButton != null) {
+                dismissButton.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                pendingAlarmDismiss = false
+                Handler(Looper.getMainLooper()).postDelayed({
+                    val intent = packageManager?.getLaunchIntentForPackage("com.rio.gamaentity")
+                    if (intent != null) {
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        startActivity(intent)
+                    }
+                }, 800)
             }
         }
     }
 
-    private fun replayTaps(taps: List<Pair<Float, Float>>, onDone: () -> Unit) {
-        if (taps.isEmpty()) { onDone(); return }
-        val tap = taps[0]
-        val remaining = taps.drop(1)
-        val path = Path().apply { moveTo(tap.first, tap.second) }
-        val stroke = GestureDescription.StrokeDescription(path, 0, 50)
-        val gesture = GestureDescription.Builder().addStroke(stroke).build()
-        dispatchGesture(gesture, object : GestureResultCallback() {
-            override fun onCompleted(gestureDescription: GestureDescription?) {
-                Handler(Looper.getMainLooper()).postDelayed({
-                    replayTaps(remaining, onDone)
-                }, 400)
-            }
-        }, null)
+    private fun findNodeByKeywords(node: AccessibilityNodeInfo, keywords: List<String>): AccessibilityNodeInfo? {
+        val desc = node.contentDescription?.toString()?.lowercase() ?: ""
+        val text = node.text?.toString()?.lowercase() ?: ""
+        val id = node.viewIdResourceName?.lowercase() ?: ""
+        if (keywords.any { desc.contains(it) || text.contains(it) || id.contains(it) }) return node
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            val result = findNodeByKeywords(child, keywords)
+            if (result != null) return result
+        }
+        return null
     }
 
     override fun onInterrupt() { instance = null }
