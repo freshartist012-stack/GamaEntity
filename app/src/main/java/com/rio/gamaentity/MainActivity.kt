@@ -491,6 +491,32 @@ When writing emails write only the email content. Never add notes, disclaimers, 
 
 
 
+    private fun startVoiceConfirmation(callback: (String) -> Unit) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED) return
+        val recognizer = SpeechRecognizer.createSpeechRecognizer(this)
+        recognizer.setRecognitionListener(object : RecognitionListener {
+            override fun onResults(results: Bundle?) {
+                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                val response = matches?.firstOrNull()?.lowercase() ?: ""
+                runOnUiThread { callback(response) }
+            }
+            override fun onError(error: Int) { runOnUiThread { callback("") } }
+            override fun onReadyForSpeech(params: Bundle?) {}
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() {}
+            override fun onPartialResults(partialResults: Bundle?) {}
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        })
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+        }
+        recognizer.startListening(intent)
+    }
+
     private fun showWhatsAppConfirmation(contactName: String, message: String, number: String) {
         val editText = android.widget.EditText(this)
         editText.setText(message)
@@ -553,7 +579,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                         dialog.dismiss()
                     }
                     response.isNotEmpty() -> {
-                        editText.setText(response)
+                        editText.setText(response.toString())
                     }
                 }
             }
