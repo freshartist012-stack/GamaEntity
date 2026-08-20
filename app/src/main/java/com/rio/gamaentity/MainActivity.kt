@@ -522,14 +522,24 @@ When writing emails write only the email content. Never add notes, disclaimers, 
             .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
             .show()
     }
-
+        val input = android.widget.EditText(this)
+        input.hint = "Enter a real number to test (e.g. 27821234567)"
+        AlertDialog.Builder(this)
+            .setTitle("Test Number")
+            .setMessage("Enter a WhatsApp number to use for the recording test:")
+            .setView(input)
+            .setPositiveButton("Open WhatsApp") { _, _ ->
+                val testNumber = input.text.toString().trim().ifEmpty { "27821234567" }
+                val uri = Uri.parse("https://api.whatsapp.com/send?phone=$testNumber&text=Test+message")
+                try { startActivity(Intent(Intent.ACTION_VIEW, uri).apply { setPackage("com.whatsapp") }) }
+                catch (e: Exception) { addMessage("GAMA", "WhatsApp not found.", false) }
+            }
+            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
+            .show()
     private fun startRecording(target: String) {
         val prefs = getSharedPreferences("gama_prefs", MODE_PRIVATE)
         if (target == "whatsapp") {
             GamaAccessibilityService.savedWhatsAppTaps.clear()
-            val uri = Uri.parse("https://api.whatsapp.com/send?phone=27000000000&text=Test+message")
-            try { startActivity(Intent(Intent.ACTION_VIEW, uri).apply { setPackage("com.whatsapp") }) }
-            catch (e: Exception) { addMessage("GAMA", "WhatsApp not found.", false) }
         } else {
             GamaAccessibilityService.savedAlarmTaps.clear()
             startActivity(Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS))
