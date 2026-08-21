@@ -13,6 +13,7 @@ class GamaAccessibilityService : AccessibilityService() {
         var instance: GamaAccessibilityService? = null
         var pendingWhatsAppSend = false
         var pendingAlarmDismiss = false
+        var attempting = false
     }
 
     override fun onServiceConnected() {
@@ -22,7 +23,8 @@ class GamaAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         val pkg = event?.packageName?.toString() ?: return
 
-        if (pendingWhatsAppSend && pkg == "com.whatsapp") {
+        if (pendingWhatsAppSend && pkg == "com.whatsapp" && !attempting) {
+            attempting = true
             attemptWhatsAppSend(0)
         }
 
@@ -46,6 +48,7 @@ class GamaAccessibilityService : AccessibilityService() {
     private fun attemptWhatsAppSend(attempt: Int) {
         if (attempt > 5) {
             pendingWhatsAppSend = false
+            attempting = false
             return
         }
         Handler(Looper.getMainLooper()).postDelayed({
@@ -57,6 +60,7 @@ class GamaAccessibilityService : AccessibilityService() {
             if (byId != null && byId.isNotEmpty() && byId[0].isEnabled) {
                 byId[0].performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 pendingWhatsAppSend = false
+                attempting = false
                 Handler(Looper.getMainLooper()).postDelayed({
                     performGlobalAction(GLOBAL_ACTION_BACK)
                     Handler(Looper.getMainLooper()).postDelayed({
@@ -73,6 +77,7 @@ class GamaAccessibilityService : AccessibilityService() {
             if (byDesc != null && byDesc.isEnabled) {
                 byDesc.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 pendingWhatsAppSend = false
+                attempting = false
                 Handler(Looper.getMainLooper()).postDelayed({
                     performGlobalAction(GLOBAL_ACTION_BACK)
                     Handler(Looper.getMainLooper()).postDelayed({
