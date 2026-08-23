@@ -155,21 +155,6 @@ class MainActivity : AppCompatActivity() {
     }
 
 
-    private fun checkAccessibilityService() {
-        val enabled = android.provider.Settings.Secure.getString(
-            contentResolver, android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        ) ?: ""
-        if (!enabled.contains(packageName)) {
-            AlertDialog.Builder(this)
-                .setTitle("Enable Auto-Send")
-                .setMessage("To automatically send WhatsApp messages, enable GAMA Entity in Accessibility Settings.")
-                .setPositiveButton("Open Settings") { _, _ ->
-                    startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
-                }
-                .setNegativeButton("Skip") { d, _ -> d.dismiss() }
-                .show()
-        }
-    }
     private fun startNewChat() {
         for (i in messages.length() - 1 downTo 0) messages.remove(i)
         messagesContainer.removeAllViews()
@@ -339,8 +324,10 @@ Only output a command when explicitly instructed. Command format when needed:
 WHATSAPP:NUMBER:MESSAGE
 WHATSAPP_CALL:NUMBER
 CALL:NUMBER
-ALARM:HH:MM:Label (example: ALARM:07:30:Wake up)
-DISMISS_ALARM (when user asks to dismiss or turn off a ringing alarm)
+            ALARM:HH:MM:Label (one time, example: ALARM:07:30:Wake up)
+            ALARM:HH:MM:Label:WEEKDAYS (Monday to Friday)
+            ALARM:HH:MM:Label:DAILY (every day)
+            ALARM:HH:MM:Label:MON,WED,FRI (specific days)
 GMAIL:email@domain.com:Subject line here:Body text here (ALWAYS include a meaningful subject, never write the word Subject)
 GOOGLE:search terms
 YOUTUBE:search terms
@@ -547,7 +534,6 @@ When writing emails write only the email content. Never add notes, disclaimers, 
             .setPositiveButton("Send") { _, _ ->
                 val finalMessage = editText.text.toString().trim()
                 val uri = android.net.Uri.parse("https://api.whatsapp.com/send?phone=$number&text=${android.net.Uri.encode(finalMessage)}")
-                GamaAccessibilityService.pendingWhatsAppSend = true
                 try { startActivity(Intent(Intent.ACTION_VIEW, uri).apply { setPackage("com.whatsapp") }) }
                 catch (e: Exception) { try { startActivity(Intent(Intent.ACTION_VIEW, uri)) } catch (e2: Exception) {} }
             }
@@ -567,8 +553,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                         dialog.dismiss()
                         val finalMessage = editText.text.toString().trim()
                         val uri = android.net.Uri.parse("https://api.whatsapp.com/send?phone=$number&text=${android.net.Uri.encode(finalMessage)}")
-                        GamaAccessibilityService.pendingWhatsAppSend = true
-                        try { startActivity(Intent(Intent.ACTION_VIEW, uri).apply { setPackage("com.whatsapp") }) }
+                                try { startActivity(Intent(Intent.ACTION_VIEW, uri).apply { setPackage("com.whatsapp") }) }
                         catch (e: Exception) { try { startActivity(Intent(Intent.ACTION_VIEW, uri)) } catch (e2: Exception) {} }
                     }
                     response.contains("edit") || response.contains("change") -> {
@@ -643,26 +628,36 @@ When writing emails write only the email content. Never add notes, disclaimers, 
             }
 
             Regex("(?i)DISMISS_ALARM").find(t)?.let {
-                GamaAccessibilityService.pendingAlarmDismiss = true
                 addMessage("GAMA", "Dismissing alarm...", false)
                 return
             }
 
-            Regex("(?i)ALARM:(\\d{1,2}):(\\d{2})(?::(.+))?").find(t)?.let {
+            Regex("(?i)ALARM:(\\d{1,2}):(\\d{2})(?::([^:]+))?(?::(.+))?").find(t)?.let {
                 val hour = it.groupValues[1].toIntOrNull() ?: return
                 val minute = it.groupValues[2].toIntOrNull() ?: return
                 val label = it.groupValues[3].ifEmpty { "GAMA Alarm" }
+                val daysStr = it.groupValues[4].uppercase()
+                val dayMap = mapOf("MON" to 2, "TUE" to 3, "WED" to 4, "THU" to 5, "FRI" to 6, "SAT" to 7, "SUN" to 1)
+                val days = when {
+                    daysStr.contains("WEEKDAYS") -> arrayListOf(2,3,4,5,6)
+                    daysStr.contains("DAILY") -> arrayListOf(1,2,3,4,5,6,7)
+                    daysStr.isNotEmpty() -> {
+                        val d = arrayListOf<Int>()
+                        daysStr.split(",").forEach { day -> dayMap[day.trim()]?.let { d.add(it) } }
+                        d
+                    }
+                    else -> null
+                }
                 val intent = Intent(android.provider.AlarmClock.ACTION_SET_ALARM).apply {
                     putExtra(android.provider.AlarmClock.EXTRA_HOUR, hour)
                     putExtra(android.provider.AlarmClock.EXTRA_MINUTES, minute)
                     putExtra(android.provider.AlarmClock.EXTRA_MESSAGE, label)
-                    putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, false)
+                    putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, true)
+                    if (days != null && days.isNotEmpty()) putIntegerArrayListExtra(android.provider.AlarmClock.EXTRA_DAYS, days)
                 }
                 try {
                     startActivity(intent)
-                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                        startActivity(Intent(this, MainActivity::class.java).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP) })
-                    }, 3000)
+                    addMessage("GAMA", "Alarm set for ${hour.toString().padStart(2,'0')}:${minute.toString().padStart(2,'0')}${if (days != null) " (recurring)" else ""}.", false)
                 } catch (e: Exception) {
                     addMessage("GAMA", "Could not set alarm.", false)
                 }
@@ -696,7 +691,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         }
         AlertDialog.Builder(this)
             .setTitle("Data Usage Disclosure")
-            .setMessage("GAMA Entity collects and transmits the following data:\n\n• Contact names and phone numbers are sent to Groq (api.groq.com) to enable WhatsApp messaging and calls by name.\n• The Accessibility Service reads the WhatsApp screen solely to tap the send button. It does not read, store, or transmit any message content.\n\nBy tapping Accept, you consent to this data usage.")
+            .setMessage("GAMA Entity collects and transmits the following data:\n\n• Contact names and phone numbers are sent to Groq (api.groq.com) to enable features like drafting WhatsApp messages and making calls by name.\n• Voice audio is processed locally on your device and is not stored or transmitted.\n\nThis data is used only when you request an action. By tapping Accept, you consent to this data usage.")
             .setCancelable(false)
             .setPositiveButton("Accept") { _, _ ->
                 prefs.edit().putBoolean("data_consent_given", true).apply()
