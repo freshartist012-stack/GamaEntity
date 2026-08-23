@@ -686,7 +686,6 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         if (prefs.getBoolean("data_consent_given", false)) {
             copyDictionaryIfNeeded()
             checkAndRequestPermissions()
-            checkAccessibilityService()
             return
         }
         AlertDialog.Builder(this)
@@ -697,7 +696,6 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 prefs.edit().putBoolean("data_consent_given", true).apply()
                 copyDictionaryIfNeeded()
                 checkAndRequestPermissions()
-                checkAccessibilityService()
             }
             .setNegativeButton("Decline") { _, _ ->
                 finish()
