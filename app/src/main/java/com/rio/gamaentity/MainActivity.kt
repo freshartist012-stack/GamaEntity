@@ -548,7 +548,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
             "Rain" to "*120*"
         )
         val number = lookupContact(contactName)
-        val digits = number.replace("[^\d]".toRegex(), "")
+        val digits = number.replace("[^\\d]".toRegex(), "")
 
         val layout = android.widget.LinearLayout(this)
         layout.orientation = android.widget.LinearLayout.VERTICAL
