@@ -886,8 +886,6 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 }
                 return
             }
-        }
-    }
 
     private fun lookupDefinition(word: String): String? {
         return try {
