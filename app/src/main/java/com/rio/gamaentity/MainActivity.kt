@@ -324,6 +324,9 @@ Only output a command when explicitly instructed. Command format when needed:
 WHATSAPP:NUMBER:MESSAGE
 WHATSAPP_CALL:NUMBER
 CALL:NUMBER
+FLASHLIGHT:ON
+FLASHLIGHT:OFF
+PLEASE_CALL:CONTACT_NAME (sends a please call me request via USSD)
             ALARM:HH:MM:Label (one time, example: ALARM:07:30:Wake up)
             ALARM:HH:MM:Label:WEEKDAYS (Monday to Friday)
             ALARM:HH:MM:Label:DAILY (every day)
@@ -504,6 +507,193 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         recognizer.startListening(intent)
     }
 
+    private fun getContactsList(): List<Pair<String, String>> {
+        val contacts = mutableListOf<Pair<String, String>>()
+        try {
+            contentResolver.query(
+                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                arrayOf(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME, ContactsContract.CommonDataKinds.Phone.NUMBER),
+                null, null, ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC"
+            )?.use {
+                while (it.moveToNext()) {
+                    val name = it.getString(0) ?: continue
+                    val number = it.getString(1) ?: continue
+                    contacts.add(Pair(name, number))
+                }
+            }
+        } catch (e: Exception) {}
+        return contacts
+    }
+
+    private fun showContactSlider(title: String, onSelected: (String, String) -> Unit) {
+        val contacts = getContactsList()
+        if (contacts.isEmpty()) { addMessage("GAMA", "No contacts found.", false); return }
+        val names = contacts.map { it.first }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setItems(names) { _, which ->
+                onSelected(contacts[which].first, formatNumber(contacts[which].second))
+            }
+            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
+            .show()
+    }
+
+    private fun showPleaseCallConfirmation(contactName: String) {
+        val networks = arrayOf("Vodacom", "MTN", "Cell C", "Telkom", "Rain")
+        val ussdCodes = mapOf(
+            "Vodacom" to "*140*",
+            "MTN" to "*121*",
+            "Cell C" to "*140*",
+            "Telkom" to "*180*",
+            "Rain" to "*120*"
+        )
+        val number = lookupContact(contactName)
+        val digits = number.replace("[^\d]".toRegex(), "")
+
+        val layout = android.widget.LinearLayout(this)
+        layout.orientation = android.widget.LinearLayout.VERTICAL
+        layout.setPadding(48, 16, 48, 0)
+
+        val networkLabel = android.widget.TextView(this)
+        networkLabel.text = "Select your network:"
+        networkLabel.textSize = 14f
+        layout.addView(networkLabel)
+
+        val networkSpinner = android.widget.Spinner(this)
+        val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, networks)
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        networkSpinner.adapter = adapter
+        layout.addView(networkSpinner)
+
+        AlertDialog.Builder(this)
+            .setTitle("Please Call: $contactName")
+            .setView(layout)
+            .setPositiveButton("Send") { _, _ ->
+                val network = networks[networkSpinner.selectedItemPosition]
+                val ussd = ussdCodes[network] ?: "*140*"
+                if (digits.length >= 7) {
+                    val ussdCode = "$ussd$number#"
+                    val intent = Intent(Intent.ACTION_CALL, android.net.Uri.parse("tel:${android.net.Uri.encode(ussdCode)}"))
+                    try { startActivity(intent) } catch (e: Exception) {
+                        addMessage("GAMA", "Could not send please call.", false)
+                    }
+                } else {
+                    showContactSlider("Select contact for Please Call") { _, num ->
+                        val ussdCode = "$ussd$num#"
+                        val intent = Intent(Intent.ACTION_CALL, android.net.Uri.parse("tel:${android.net.Uri.encode(ussdCode)}"))
+                        try { startActivity(intent) } catch (e: Exception) {
+                            addMessage("GAMA", "Could not send please call.", false)
+                        }
+                    }
+                }
+            }
+            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
+            .show()
+    }
+
+    private fun showCallConfirmation(contactName: String, number: String) {
+        val layout = android.widget.LinearLayout(this)
+        layout.orientation = android.widget.LinearLayout.VERTICAL
+        layout.setPadding(48, 16, 48, 0)
+
+        val nameView = android.widget.TextView(this)
+        nameView.text = "Calling: $contactName"
+        nameView.textSize = 16f
+        nameView.setTextColor(0xFF333333.toInt())
+        layout.addView(nameView)
+
+        val numberView = android.widget.TextView(this)
+        numberView.text = "Number: $number"
+        numberView.textSize = 14f
+        numberView.setTextColor(0xFF666666.toInt())
+        layout.addView(numberView)
+
+        val changeContact = android.widget.TextView(this)
+        changeContact.text = "Tap to change contact"
+        changeContact.textSize = 13f
+        changeContact.setTextColor(0xFFCEBAA2.toInt())
+        changeContact.setPadding(0, 12, 0, 0)
+        layout.addView(changeContact)
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Make Call?")
+            .setView(layout)
+            .setCancelable(false)
+            .setPositiveButton("Call") { _, _ ->
+                try { startActivity(Intent(Intent.ACTION_CALL, android.net.Uri.parse("tel:$number"))) }
+                catch (e: Exception) { startActivity(Intent(Intent.ACTION_DIAL, android.net.Uri.parse("tel:$number"))) }
+            }
+            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
+            .create()
+
+        changeContact.setOnClickListener {
+            dialog.dismiss()
+            showContactSlider("Select Contact to Call") { name, num ->
+                try { startActivity(Intent(Intent.ACTION_CALL, android.net.Uri.parse("tel:$num"))) }
+                catch (e: Exception) { startActivity(Intent(Intent.ACTION_DIAL, android.net.Uri.parse("tel:$num"))) }
+            }
+        }
+
+        dialog.show()
+
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            startVoiceConfirmation { response ->
+                when {
+                    response.contains("confirm") || response.contains("call") || response.contains("yes") -> {
+                        dialog.dismiss()
+                        try { startActivity(Intent(Intent.ACTION_CALL, android.net.Uri.parse("tel:$number"))) }
+                        catch (e: Exception) { startActivity(Intent(Intent.ACTION_DIAL, android.net.Uri.parse("tel:$number"))) }
+                    }
+                    response.contains("cancel") || response.contains("no") -> dialog.dismiss()
+                }
+            }
+        }, 800)
+    }
+
+    private fun showEmailConfirmation(to: String, subject: String, body: String) {
+        val layout = android.widget.LinearLayout(this)
+        layout.orientation = android.widget.LinearLayout.VERTICAL
+        layout.setPadding(48, 16, 48, 0)
+
+        val toInput = android.widget.EditText(this)
+        toInput.hint = "To"
+        toInput.setText(to)
+        toInput.textSize = 14f
+        layout.addView(android.widget.TextView(this).apply { text = "To:"; textSize = 12f; setTextColor(0xFF888888.toInt()) })
+        layout.addView(toInput)
+
+        val subjectInput = android.widget.EditText(this)
+        subjectInput.hint = "Subject"
+        subjectInput.setText(subject)
+        subjectInput.textSize = 14f
+        layout.addView(android.widget.TextView(this).apply { text = "Subject:"; textSize = 12f; setTextColor(0xFF888888.toInt()) })
+        layout.addView(subjectInput)
+
+        val bodyInput = android.widget.EditText(this)
+        bodyInput.hint = "Message"
+        bodyInput.setText(body)
+        bodyInput.minLines = 3
+        bodyInput.textSize = 14f
+        layout.addView(android.widget.TextView(this).apply { text = "Message:"; textSize = 12f; setTextColor(0xFF888888.toInt()) })
+        layout.addView(bodyInput)
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle("Send Email?")
+            .setView(layout)
+            .setCancelable(false)
+            .setPositiveButton("Send") { _, _ ->
+                val finalTo = toInput.text.toString().trim()
+                val finalSubject = subjectInput.text.toString().trim()
+                val finalBody = bodyInput.text.toString().trim()
+                startActivity(Intent(Intent.ACTION_VIEW,
+                    android.net.Uri.parse("mailto:$finalTo?subject=${android.net.Uri.encode(finalSubject)}&body=${android.net.Uri.encode(finalBody)}")))
+            }
+            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
+            .create()
+
+        dialog.show()
+    }
+
     private fun showWhatsAppConfirmation(contactName: String, message: String, number: String) {
         val editText = android.widget.EditText(this)
         editText.setText(message)
@@ -613,7 +803,26 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 val to = gm.groupValues[1].trim()
                 val subject = if (gmailThree != null) gm.groupValues[2].trim().replace(Regex("(?i)^subject[=:\\s]+"), "").trim() else "Message"
                 val body = if (gmailThree != null) gm.groupValues[3].trim() else gm.groupValues[2].trim()
-                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("mailto:$to?subject=${Uri.encode(subject)}&body=${Uri.encode(body)}")))
+                showEmailConfirmation(to, subject, body)
+                return
+            }
+
+            Regex("(?i)PLEASE_CALL:(.+)").find(t)?.let {
+                val contactName = it.groupValues[1].trim()
+                showPleaseCallConfirmation(contactName)
+                return
+            }
+
+            Regex("(?i)FLASHLIGHT:(ON|OFF)").find(t)?.let {
+                val state = it.groupValues[1].uppercase()
+                try {
+                    val cm = getSystemService(android.content.Context.CAMERA_SERVICE) as android.hardware.camera2.CameraManager
+                    val cameraId = cm.cameraIdList[0]
+                    cm.setTorchMode(cameraId, state == "ON")
+                    addMessage("GAMA", "Flashlight ${if (state == "ON") "on" else "off"}.", false)
+                } catch (e: Exception) {
+                    addMessage("GAMA", "Could not control flashlight.", false)
+                }
                 return
             }
 
