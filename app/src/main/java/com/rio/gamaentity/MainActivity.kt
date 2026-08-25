@@ -324,6 +324,8 @@ Only output a command when explicitly instructed. Command format when needed:
 WHATSAPP:NUMBER:MESSAGE
 WHATSAPP_CALL:NUMBER
 CALL:NUMBER
+FLASHLIGHT:ON
+FLASHLIGHT:OFF
             ALARM:HH:MM:Label (one time, example: ALARM:07:30:Wake up)
             ALARM:HH:MM:Label:WEEKDAYS (Monday to Friday)
             ALARM:HH:MM:Label:DAILY (every day)
@@ -614,6 +616,19 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 val subject = if (gmailThree != null) gm.groupValues[2].trim().replace(Regex("(?i)^subject[=:\\s]+"), "").trim() else "Message"
                 val body = if (gmailThree != null) gm.groupValues[3].trim() else gm.groupValues[2].trim()
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("mailto:$to?subject=${Uri.encode(subject)}&body=${Uri.encode(body)}")))
+                return
+            }
+
+            Regex("(?i)FLASHLIGHT:(ON|OFF)").find(t)?.let {
+                val state = it.groupValues[1].uppercase()
+                try {
+                    val cm = getSystemService(android.content.Context.CAMERA_SERVICE) as android.hardware.camera2.CameraManager
+                    val cameraId = cm.cameraIdList[0]
+                    cm.setTorchMode(cameraId, state == "ON")
+                    addMessage("GAMA", "Flashlight ${if (state == "ON") "on" else "off"}.", false)
+                } catch (e: Exception) {
+                    addMessage("GAMA", "Could not control flashlight.", false)
+                }
                 return
             }
 
