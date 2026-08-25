@@ -876,7 +876,11 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                     putExtra(android.provider.AlarmClock.EXTRA_MINUTES, minute)
                     putExtra(android.provider.AlarmClock.EXTRA_MESSAGE, label)
                     putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, true)
-                    if (days != null) { val dl = java.util.ArrayList<Int>(); dl.addAll(days); putExtra(android.provider.AlarmClock.EXTRA_DAYS, dl) }
+                }
+                if (days != null) {
+                    val dl = java.util.ArrayList<Int>()
+                    dl.addAll(days)
+                    intent.putIntegerArrayListExtra(android.provider.AlarmClock.EXTRA_DAYS, dl)
                 }
                 try {
                     startActivity(intent)
