@@ -861,7 +861,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 val label = it.groupValues[3].ifEmpty { "GAMA Alarm" }
                 val daysStr = it.groupValues[4].uppercase()
                 val dayMap = mapOf("MON" to 2, "TUE" to 3, "WED" to 4, "THU" to 5, "FRI" to 6, "SAT" to 7, "SUN" to 1)
-                val days = when {
+                val days: ArrayList<Int>? = when {
                     daysStr.contains("WEEKDAYS") -> arrayListOf(2,3,4,5,6)
                     daysStr.contains("DAILY") -> arrayListOf(1,2,3,4,5,6,7)
                     daysStr.isNotEmpty() -> {
