@@ -871,12 +871,11 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                     }
                     else -> null
                 }
-                val intent = Intent(android.provider.AlarmClock.ACTION_SET_ALARM).apply {
-                    putExtra(android.provider.AlarmClock.EXTRA_HOUR, hour)
-                    putExtra(android.provider.AlarmClock.EXTRA_MINUTES, minute)
-                    putExtra(android.provider.AlarmClock.EXTRA_MESSAGE, label)
-                    putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, true)
-                }
+                val intent = Intent(android.provider.AlarmClock.ACTION_SET_ALARM)
+                intent.putExtra(android.provider.AlarmClock.EXTRA_HOUR, hour)
+                intent.putExtra(android.provider.AlarmClock.EXTRA_MINUTES, minute)
+                intent.putExtra(android.provider.AlarmClock.EXTRA_MESSAGE, label as String)
+                intent.putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, true)
                 if (days != null) {
                     val dl = java.util.ArrayList<Int>()
                     dl.addAll(days)
