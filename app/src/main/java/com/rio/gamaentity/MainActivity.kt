@@ -866,7 +866,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                     daysStr.contains("DAILY") -> arrayListOf(1,2,3,4,5,6,7)
                     daysStr.isNotEmpty() -> {
                         val d = arrayListOf<Int>()
-                        daysStr.split(",").forEach { day -> dayMap[day.trim()]?.let { d.add(it) } }
+                        daysStr.split(",").forEach { day: String -> val v = dayMap[day.trim()]; if (v != null) d.add(v) }
                         d
                     }
                     else -> null
