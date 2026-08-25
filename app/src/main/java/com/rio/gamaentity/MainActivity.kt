@@ -872,8 +872,8 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                     else -> null
                 }
                 val intent = Intent(android.provider.AlarmClock.ACTION_SET_ALARM)
-                intent.putExtra(android.provider.AlarmClock.EXTRA_HOUR, hour)
-                intent.putExtra(android.provider.AlarmClock.EXTRA_MINUTES, minute)
+                intent.putExtra(android.provider.AlarmClock.EXTRA_HOUR, hour as Int)
+                intent.putExtra(android.provider.AlarmClock.EXTRA_MINUTES, minute as Int)
                 intent.putExtra(android.provider.AlarmClock.EXTRA_MESSAGE, label as String)
                 intent.putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, true)
                 if (days != null) {
