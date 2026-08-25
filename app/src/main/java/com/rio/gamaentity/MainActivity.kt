@@ -324,9 +324,6 @@ Only output a command when explicitly instructed. Command format when needed:
 WHATSAPP:NUMBER:MESSAGE
 WHATSAPP_CALL:NUMBER
 CALL:NUMBER
-FLASHLIGHT:ON
-FLASHLIGHT:OFF
-PLEASE_CALL:CONTACT_NAME (sends a please call me request via USSD)
             ALARM:HH:MM:Label (one time, example: ALARM:07:30:Wake up)
             ALARM:HH:MM:Label:WEEKDAYS (Monday to Friday)
             ALARM:HH:MM:Label:DAILY (every day)
@@ -507,201 +504,6 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         recognizer.startListening(intent)
     }
 
-    private fun getContactsList(): List<Pair<String, String>> {
-        val contacts = mutableListOf<Pair<String, String>>()
-        try {
-            contentResolver.query(
-                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
-                arrayOf(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME, ContactsContract.CommonDataKinds.Phone.NUMBER),
-                null, null, ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC"
-            )?.use {
-                while (it.moveToNext()) {
-                    val name = it.getString(0) ?: continue
-                    val number = it.getString(1) ?: continue
-                    contacts.add(Pair(name, number))
-                }
-            }
-        } catch (e: Exception) {}
-        return contacts
-    }
-
-    private fun showContactSlider(title: String, onSelected: (String, String) -> Unit) {
-        val contacts = getContactsList()
-        if (contacts.isEmpty()) { addMessage("GAMA", "No contacts found.", false); return }
-        val names = contacts.map { it.first }.toTypedArray()
-        AlertDialog.Builder(this)
-            .setTitle(title)
-            .setItems(names) { _, which ->
-                onSelected(contacts[which].first, formatNumber(contacts[which].second))
-            }
-            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
-            .show()
-    }
-
-    private fun showPleaseCallConfirmation(contactName: String) {
-        val networks = arrayOf("MTN", "Vodacom", "Telkom", "Cell C")
-        val ussdCodes = mapOf(
-            "MTN" to "*121*",
-            "Vodacom" to "*140*",
-            "Telkom" to "*140*",
-            "Cell C" to "*111*"
-        )
-        val number = lookupContact(contactName)
-        val digits = number.replace("[^\\d]".toRegex(), "")
-
-        val layout = android.widget.LinearLayout(this)
-        layout.orientation = android.widget.LinearLayout.VERTICAL
-        layout.setPadding(48, 16, 48, 0)
-
-        val networkLabel = android.widget.TextView(this)
-        networkLabel.text = "Select your network:"
-        networkLabel.textSize = 14f
-        layout.addView(networkLabel)
-
-        val networkSpinner = android.widget.Spinner(this)
-        val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, networks)
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        networkSpinner.adapter = adapter
-        layout.addView(networkSpinner)
-
-        AlertDialog.Builder(this)
-            .setTitle("Please Call: $contactName")
-            .setView(layout)
-            .setPositiveButton("Send") { _, _ ->
-                val network = networks[networkSpinner.selectedItemPosition]
-                val ussd = ussdCodes[network] ?: "*140*"
-                if (digits.length >= 7) {
-                    val ussdCode = "$ussd$number#"
-                    val intent = Intent(Intent.ACTION_CALL, android.net.Uri.parse("tel:${android.net.Uri.encode(ussdCode)}"))
-                    try { startActivity(intent) } catch (e: Exception) {
-                        addMessage("GAMA", "Could not send please call.", false)
-                    }
-                } else {
-                    showContactSlider("Select contact for Please Call") { _, num ->
-                        val ussdCode = "$ussd$num#"
-                        val intent = Intent(Intent.ACTION_CALL, android.net.Uri.parse("tel:${android.net.Uri.encode(ussdCode)}"))
-                        try { startActivity(intent) } catch (e: Exception) {
-                            addMessage("GAMA", "Could not send please call.", false)
-                        }
-                    }
-                }
-            }
-            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
-            .show()
-    }
-
-    private fun showCallConfirmation(contactName: String, number: String) {
-        val contacts = getContactsList()
-        val names = contacts.map { it.first }.toTypedArray()
-        var selectedNumber = number
-        var selectedName = contactName
-
-        val layout = android.widget.LinearLayout(this)
-        layout.orientation = android.widget.LinearLayout.VERTICAL
-        layout.setPadding(48, 16, 48, 0)
-
-        val nameView = android.widget.TextView(this)
-        nameView.text = "Calling: $selectedName"
-        nameView.textSize = 16f
-        nameView.setTextColor(0xFF333333.toInt())
-        layout.addView(nameView)
-
-        val numberView = android.widget.TextView(this)
-        numberView.text = "Number: $selectedNumber"
-        numberView.textSize = 14f
-        numberView.setTextColor(0xFF666666.toInt())
-        layout.addView(numberView)
-
-        val spinner = android.widget.Spinner(this)
-        val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, names)
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        spinner.adapter = adapter
-        val defaultIndex = names.indexOfFirst { it.equals(contactName, ignoreCase = true) }
-        if (defaultIndex >= 0) spinner.setSelection(defaultIndex)
-        layout.addView(android.widget.TextView(this).apply { text = "Change contact:"; textSize = 12f; setTextColor(0xFF888888.toInt()); setPadding(0,12,0,4) })
-        layout.addView(spinner)
-
-        spinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
-                selectedName = contacts[position].first
-                selectedNumber = formatNumber(contacts[position].second)
-                nameView.text = "Calling: $selectedName"
-                numberView.text = "Number: $selectedNumber"
-            }
-            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
-        }
-
-        val dialog = AlertDialog.Builder(this)
-            .setTitle("Make Call?")
-            .setView(layout)
-            .setCancelable(false)
-            .setPositiveButton("Call") { _, _ ->
-                try { startActivity(Intent(Intent.ACTION_CALL, android.net.Uri.parse("tel:$selectedNumber"))) }
-                catch (e: Exception) { startActivity(Intent(Intent.ACTION_DIAL, android.net.Uri.parse("tel:$selectedNumber"))) }
-            }
-            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
-            .create()
-
-        dialog.show()
-
-        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-            startVoiceConfirmation { response ->
-                when {
-                    response.contains("confirm") || response.contains("call") || response.contains("yes") -> {
-                        dialog.dismiss()
-                        try { startActivity(Intent(Intent.ACTION_CALL, android.net.Uri.parse("tel:$selectedNumber"))) }
-                        catch (e: Exception) { startActivity(Intent(Intent.ACTION_DIAL, android.net.Uri.parse("tel:$selectedNumber"))) }
-                    }
-                    response.contains("cancel") || response.contains("no") -> dialog.dismiss()
-                }
-            }
-        }, 800)
-    }
-
-    private fun showEmailConfirmation(to: String, subject: String, body: String) {
-        val layout = android.widget.LinearLayout(this)
-        layout.orientation = android.widget.LinearLayout.VERTICAL
-        layout.setPadding(48, 16, 48, 0)
-
-        val toInput = android.widget.EditText(this)
-        toInput.hint = "To"
-        toInput.setText(to)
-        toInput.textSize = 14f
-        layout.addView(android.widget.TextView(this).apply { text = "To:"; textSize = 12f; setTextColor(0xFF888888.toInt()) })
-        layout.addView(toInput)
-
-        val subjectInput = android.widget.EditText(this)
-        subjectInput.hint = "Subject"
-        subjectInput.setText(subject)
-        subjectInput.textSize = 14f
-        layout.addView(android.widget.TextView(this).apply { text = "Subject:"; textSize = 12f; setTextColor(0xFF888888.toInt()) })
-        layout.addView(subjectInput)
-
-        val bodyInput = android.widget.EditText(this)
-        bodyInput.hint = "Message"
-        bodyInput.setText(body)
-        bodyInput.minLines = 3
-        bodyInput.textSize = 14f
-        layout.addView(android.widget.TextView(this).apply { text = "Message:"; textSize = 12f; setTextColor(0xFF888888.toInt()) })
-        layout.addView(bodyInput)
-
-        val dialog = AlertDialog.Builder(this)
-            .setTitle("Send Email?")
-            .setView(layout)
-            .setCancelable(false)
-            .setPositiveButton("Send") { _, _ ->
-                val finalTo = toInput.text.toString().trim()
-                val finalSubject = subjectInput.text.toString().trim()
-                val finalBody = bodyInput.text.toString().trim()
-                startActivity(Intent(Intent.ACTION_VIEW,
-                    android.net.Uri.parse("mailto:$finalTo?subject=${android.net.Uri.encode(finalSubject)}&body=${android.net.Uri.encode(finalBody)}")))
-            }
-            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
-            .create()
-
-        dialog.show()
-    }
-
     private fun showWhatsAppConfirmation(contactName: String, message: String, number: String) {
         val editText = android.widget.EditText(this)
         editText.setText(message)
@@ -796,14 +598,8 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 val number = lookupContact(raw)
                 val digits = number.replace("[^\\d]".toRegex(), "")
                 if (digits.length < 7) {
-                    showContactSlider("Select Contact to Call") { name, num ->
-                        showCallConfirmation(name, num)
-                    }
-                } else {
-                    showCallConfirmation(raw, number)
-                }
-                return
-            }
+                    showContactPicker("call", "")
+                    return
                 }
                 try { startActivity(Intent(Intent.ACTION_CALL, Uri.parse("tel:$number"))) }
                 catch (e: Exception) { startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$number"))) }
@@ -817,26 +613,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 val to = gm.groupValues[1].trim()
                 val subject = if (gmailThree != null) gm.groupValues[2].trim().replace(Regex("(?i)^subject[=:\\s]+"), "").trim() else "Message"
                 val body = if (gmailThree != null) gm.groupValues[3].trim() else gm.groupValues[2].trim()
-                showEmailConfirmation(to, subject, body)
-                return
-            }
-
-            Regex("(?i)PLEASE_CALL:(.+)").find(t)?.let {
-                val contactName = it.groupValues[1].trim()
-                showPleaseCallConfirmation(contactName)
-                return
-            }
-
-            Regex("(?i)FLASHLIGHT:(ON|OFF)").find(t)?.let {
-                val state = it.groupValues[1].uppercase()
-                try {
-                    val cm = getSystemService(android.content.Context.CAMERA_SERVICE) as android.hardware.camera2.CameraManager
-                    val cameraId = cm.cameraIdList[0]
-                    cm.setTorchMode(cameraId, state == "ON")
-                    addMessage("GAMA", "Flashlight ${if (state == "ON") "on" else "off"}.", false)
-                } catch (e: Exception) {
-                    addMessage("GAMA", "Could not control flashlight.", false)
-                }
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("mailto:$to?subject=${Uri.encode(subject)}&body=${Uri.encode(body)}")))
                 return
             }
 
@@ -855,38 +632,39 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 return
             }
 
-            val alarmMatch = Regex("(?i)ALARM:(\\d{1,2}):(\\d{2})(?::([^:]+))?(?::(.+))?").find(t)
-            if (alarmMatch != null) {
-                val hour = alarmMatch.groupValues[1].toIntOrNull() ?: return
-                val minute = alarmMatch.groupValues[2].toIntOrNull() ?: return
-                val label = alarmMatch.groupValues[3].ifEmpty { "GAMA Alarm" }
-                val daysStr = alarmMatch.groupValues[4].uppercase()
-                val alarmIntent = Intent(android.provider.AlarmClock.ACTION_SET_ALARM)
-                alarmIntent.putExtra(android.provider.AlarmClock.EXTRA_HOUR, hour)
-                alarmIntent.putExtra(android.provider.AlarmClock.EXTRA_MINUTES, minute)
-                alarmIntent.putExtra(android.provider.AlarmClock.EXTRA_MESSAGE, label)
-                alarmIntent.putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, true)
-                if (daysStr.isNotEmpty()) {
-                    val dayMap = mapOf("MON" to 2, "TUE" to 3, "WED" to 4, "THU" to 5, "FRI" to 6, "SAT" to 7, "SUN" to 1)
-                    val dl = java.util.ArrayList<Int>()
-                    when {
-                        daysStr.contains("WEEKDAYS") -> dl.addAll(listOf(2,3,4,5,6))
-                        daysStr.contains("DAILY") -> dl.addAll(listOf(1,2,3,4,5,6,7))
-                        else -> daysStr.split(",").forEach { day ->
-                            val v = dayMap[day.trim()]
-                            if (v != null) dl.add(v)
-                        }
+            Regex("(?i)ALARM:(\\d{1,2}):(\\d{2})(?::([^:]+))?(?::(.+))?").find(t)?.let {
+                val hour = it.groupValues[1].toIntOrNull() ?: return
+                val minute = it.groupValues[2].toIntOrNull() ?: return
+                val label = it.groupValues[3].ifEmpty { "GAMA Alarm" }
+                val daysStr = it.groupValues[4].uppercase()
+                val dayMap = mapOf("MON" to 2, "TUE" to 3, "WED" to 4, "THU" to 5, "FRI" to 6, "SAT" to 7, "SUN" to 1)
+                val days = when {
+                    daysStr.contains("WEEKDAYS") -> arrayListOf(2,3,4,5,6)
+                    daysStr.contains("DAILY") -> arrayListOf(1,2,3,4,5,6,7)
+                    daysStr.isNotEmpty() -> {
+                        val d = arrayListOf<Int>()
+                        daysStr.split(",").forEach { day -> dayMap[day.trim()]?.let { d.add(it) } }
+                        d
                     }
-                    if (dl.isNotEmpty()) alarmIntent.putIntegerArrayListExtra(android.provider.AlarmClock.EXTRA_DAYS, dl)
+                    else -> null
+                }
+                val intent = Intent(android.provider.AlarmClock.ACTION_SET_ALARM).apply {
+                    putExtra(android.provider.AlarmClock.EXTRA_HOUR, hour)
+                    putExtra(android.provider.AlarmClock.EXTRA_MINUTES, minute)
+                    putExtra(android.provider.AlarmClock.EXTRA_MESSAGE, label)
+                    putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, true)
+                    if (days != null && days.isNotEmpty()) putIntegerArrayListExtra(android.provider.AlarmClock.EXTRA_DAYS, days)
                 }
                 try {
-                    startActivity(alarmIntent)
-                    addMessage("GAMA", "Alarm set for ${hour.toString().padStart(2,'0')}:${minute.toString().padStart(2,'0')}.", false)
+                    startActivity(intent)
+                    addMessage("GAMA", "Alarm set for ${hour.toString().padStart(2,'0')}:${minute.toString().padStart(2,'0')}${if (days != null) " (recurring)" else ""}.", false)
                 } catch (e: Exception) {
                     addMessage("GAMA", "Could not set alarm.", false)
                 }
                 return
             }
+        }
+    }
 
     private fun lookupDefinition(word: String): String? {
         return try {
@@ -908,6 +686,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         if (prefs.getBoolean("data_consent_given", false)) {
             copyDictionaryIfNeeded()
             checkAndRequestPermissions()
+            checkAccessibilityService()
             return
         }
         AlertDialog.Builder(this)
@@ -918,6 +697,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 prefs.edit().putBoolean("data_consent_given", true).apply()
                 copyDictionaryIfNeeded()
                 checkAndRequestPermissions()
+                checkAccessibilityService()
             }
             .setNegativeButton("Decline") { _, _ ->
                 finish()
