@@ -855,35 +855,33 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 return
             }
 
-            Regex("(?i)ALARM:(\\d{1,2}):(\\d{2})(?::([^:]+))?(?::(.+))?").find(t)?.let {
-                val hour = it.groupValues[1].toIntOrNull() ?: return
-                val minute = it.groupValues[2].toIntOrNull() ?: return
-                val label = it.groupValues[3].ifEmpty { "GAMA Alarm" }
-                val daysStr = it.groupValues[4].uppercase()
-                val dayMap = mapOf("MON" to 2, "TUE" to 3, "WED" to 4, "THU" to 5, "FRI" to 6, "SAT" to 7, "SUN" to 1)
-                val days: ArrayList<Int>? = when {
-                    daysStr.contains("WEEKDAYS") -> arrayListOf(2,3,4,5,6)
-                    daysStr.contains("DAILY") -> arrayListOf(1,2,3,4,5,6,7)
-                    daysStr.isNotEmpty() -> {
-                        val d = arrayListOf<Int>()
-                        daysStr.split(",").forEach { day: String -> val v = dayMap[day.trim()]; if (v != null) d.add(v) }
-                        d
-                    }
-                    else -> null
-                }
-                val intent = Intent(android.provider.AlarmClock.ACTION_SET_ALARM)
-                intent.putExtra(android.provider.AlarmClock.EXTRA_HOUR, hour as Int)
-                intent.putExtra(android.provider.AlarmClock.EXTRA_MINUTES, minute as Int)
-                intent.putExtra(android.provider.AlarmClock.EXTRA_MESSAGE, label as String)
-                intent.putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, true)
-                if (days != null) {
+            val alarmMatch = Regex("(?i)ALARM:(\\d{1,2}):(\\d{2})(?::([^:]+))?(?::(.+))?").find(t)
+            if (alarmMatch != null) {
+                val hour = alarmMatch.groupValues[1].toIntOrNull() ?: return
+                val minute = alarmMatch.groupValues[2].toIntOrNull() ?: return
+                val label = alarmMatch.groupValues[3].ifEmpty { "GAMA Alarm" }
+                val daysStr = alarmMatch.groupValues[4].uppercase()
+                val alarmIntent = Intent(android.provider.AlarmClock.ACTION_SET_ALARM)
+                alarmIntent.putExtra(android.provider.AlarmClock.EXTRA_HOUR, hour)
+                alarmIntent.putExtra(android.provider.AlarmClock.EXTRA_MINUTES, minute)
+                alarmIntent.putExtra(android.provider.AlarmClock.EXTRA_MESSAGE, label)
+                alarmIntent.putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, true)
+                if (daysStr.isNotEmpty()) {
+                    val dayMap = mapOf("MON" to 2, "TUE" to 3, "WED" to 4, "THU" to 5, "FRI" to 6, "SAT" to 7, "SUN" to 1)
                     val dl = java.util.ArrayList<Int>()
-                    dl.addAll(days)
-                    intent.putIntegerArrayListExtra(android.provider.AlarmClock.EXTRA_DAYS, dl)
+                    when {
+                        daysStr.contains("WEEKDAYS") -> dl.addAll(listOf(2,3,4,5,6))
+                        daysStr.contains("DAILY") -> dl.addAll(listOf(1,2,3,4,5,6,7))
+                        else -> daysStr.split(",").forEach { day ->
+                            val v = dayMap[day.trim()]
+                            if (v != null) dl.add(v)
+                        }
+                    }
+                    if (dl.isNotEmpty()) alarmIntent.putIntegerArrayListExtra(android.provider.AlarmClock.EXTRA_DAYS, dl)
                 }
                 try {
-                    startActivity(intent)
-                    addMessage("GAMA", "Alarm set for ${hour.toString().padStart(2,'0')}:${minute.toString().padStart(2,'0')}${if (days != null) " (recurring)" else ""}.", false)
+                    startActivity(alarmIntent)
+                    addMessage("GAMA", "Alarm set for ${hour.toString().padStart(2,'0')}:${minute.toString().padStart(2,'0')}.", false)
                 } catch (e: Exception) {
                     addMessage("GAMA", "Could not set alarm.", false)
                 }
