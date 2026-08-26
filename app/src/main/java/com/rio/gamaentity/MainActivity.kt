@@ -764,7 +764,10 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                         .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
                         .show()
                 } else {
-                    showCallConfirmation(raw, number)
+                    val contactName = getContactsList().firstOrNull { 
+                        formatNumber(it.second) == number || it.first.lowercase().contains(raw.lowercase())
+                    }?.first ?: raw
+                    showCallConfirmation(contactName, number)
                 }
                 return
             }
