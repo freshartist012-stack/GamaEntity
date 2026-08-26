@@ -326,6 +326,7 @@ WHATSAPP_CALL:NUMBER
 CALL:NUMBER
 FLASHLIGHT:ON
 FLASHLIGHT:OFF
+PLEASE_CALL:CONTACT_NAME (sends a please call me via USSD)
             ALARM:HH:MM:Label (one time, example: ALARM:07:30:Wake up)
             ALARM:HH:MM:Label:WEEKDAYS (Monday to Friday)
             ALARM:HH:MM:Label:DAILY (every day)
@@ -622,7 +623,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, names)
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         spinner.adapter = adapter
-        val defaultIndex = names.indexOfFirst { it.equals(contactName, ignoreCase = true) }
+        val defaultIndex = names.indexOfFirst { it.lowercase().contains(contactName.lowercase()) }
         if (defaultIndex >= 0) spinner.setSelection(defaultIndex)
         layout.addView(spinner)
 
@@ -643,6 +644,84 @@ When writing emails write only the email content. Never add notes, disclaimers, 
             .setPositiveButton("Call") { _, _ ->
                 try { startActivity(Intent(Intent.ACTION_CALL, Uri.parse("tel:$selectedNumber"))) }
                 catch (e: Exception) { startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$selectedNumber"))) }
+            }
+            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
+            .show()
+    }
+
+    private fun showPleaseCallConfirmation(contactName: String) {
+        val networks = arrayOf("MTN", "Vodacom", "Telkom", "Cell C")
+        val ussdCodes = mapOf("MTN" to "*121*", "Vodacom" to "*140*", "Telkom" to "*140*", "Cell C" to "*111*")
+        val number = lookupContact(contactName)
+        val digits = number.replace("[^\d]".toRegex(), "")
+
+        val contacts = getContactsList()
+        val names = contacts.map { it.first }.toTypedArray()
+        var selectedNumber = if (digits.length >= 7) number else ""
+        var selectedName = contactName
+
+        val layout = android.widget.LinearLayout(this)
+        layout.orientation = android.widget.LinearLayout.VERTICAL
+        layout.setPadding(48, 16, 48, 0)
+
+        val nameView = android.widget.TextView(this)
+        nameView.text = "Please call: $selectedName"
+        nameView.textSize = 16f
+        layout.addView(nameView)
+
+        layout.addView(android.widget.TextView(this).apply {
+            text = "Change contact:"
+            textSize = 12f
+            setTextColor(0xFF888888.toInt())
+            setPadding(0, 8, 0, 4)
+        })
+
+        val contactSpinner = android.widget.Spinner(this)
+        val contactAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, names)
+        contactAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        contactSpinner.adapter = contactAdapter
+        val defaultIndex = names.indexOfFirst { it.lowercase().contains(contactName.lowercase()) }
+        if (defaultIndex >= 0) contactSpinner.setSelection(defaultIndex)
+        layout.addView(contactSpinner)
+
+        layout.addView(android.widget.TextView(this).apply {
+            text = "Your network:"
+            textSize = 12f
+            setTextColor(0xFF888888.toInt())
+            setPadding(0, 12, 0, 4)
+        })
+
+        val networkSpinner = android.widget.Spinner(this)
+        val networkAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, networks)
+        networkAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        networkSpinner.adapter = networkAdapter
+        layout.addView(networkSpinner)
+
+        contactSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                selectedName = contacts[position].first
+                selectedNumber = formatNumber(contacts[position].second)
+                nameView.text = "Please call: $selectedName"
+            }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Send Please Call?")
+            .setView(layout)
+            .setCancelable(false)
+            .setPositiveButton("Send") { _, _ ->
+                val network = networks[networkSpinner.selectedItemPosition]
+                val ussd = ussdCodes[network] ?: "*140*"
+                val cleanNumber = selectedNumber.replace("[^\d]".toRegex(), "")
+                if (cleanNumber.length >= 7) {
+                    val ussdCode = "$ussd$cleanNumber#"
+                    val intent = Intent(Intent.ACTION_CALL, Uri.parse("tel:${Uri.encode(ussdCode)}"))
+                    try { startActivity(intent) }
+                    catch (e: Exception) { addMessage("GAMA", "Could not send please call.", false) }
+                } else {
+                    addMessage("GAMA", "Contact number not found.", false)
+                }
             }
             .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
             .show()
@@ -698,6 +777,11 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 val subject = if (gmailThree != null) gm.groupValues[2].trim().replace(Regex("(?i)^subject[=:\\s]+"), "").trim() else "Message"
                 val body = if (gmailThree != null) gm.groupValues[3].trim() else gm.groupValues[2].trim()
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("mailto:$to?subject=${Uri.encode(subject)}&body=${Uri.encode(body)}")))
+                return
+            }
+
+            Regex("(?i)PLEASE_CALL:(.+)").find(t)?.let {
+                showPleaseCallConfirmation(it.groupValues[1].trim())
                 return
             }
 
