@@ -326,7 +326,7 @@ WHATSAPP_CALL:NUMBER
 CALL:NUMBER
 FLASHLIGHT:ON
 FLASHLIGHT:OFF
-PLEASE_CALL:CONTACT_NAME (sends a please call me via USSD)
+PLEASE_CALL:CONTACT_NAME (use this when user says "please call", "call me back", "callback" or "please call me" — NOT for regular calls)
             ALARM:HH:MM:Label (one time, example: ALARM:07:30:Wake up)
             ALARM:HH:MM:Label:WEEKDAYS (Monday to Friday)
             ALARM:HH:MM:Label:DAILY (every day)
@@ -396,7 +396,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
 
     private fun callGroq() {
         val body = JSONObject()
-        body.put("model", "groq/compound-mini")
+        body.put("model", "llama-3.1-8b-instant")
         body.put("messages", messages)
         body.put("max_tokens", 1000)
                 body.put("tool_choice", "none")
