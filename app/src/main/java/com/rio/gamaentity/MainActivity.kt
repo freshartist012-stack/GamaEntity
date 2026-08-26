@@ -60,7 +60,7 @@ class MainActivity : AppCompatActivity() {
     private val GAMA_URL = "http://204.168.232.162:11434/api/chat"
     private var currentChatFile = ""
     private var userName = "User"
-    private var modelType = "native"
+    private var modelType = "groq"
     private var groqKey = ""
     private var systemPromptAdded = false
     private lateinit var typingIndicator: TextView
@@ -71,7 +71,7 @@ class MainActivity : AppCompatActivity() {
 
         prefs = getSharedPreferences("gama_prefs", MODE_PRIVATE)
         userName = prefs.getString("user_name", "User") ?: "User"
-        modelType = prefs.getString("model_type", "native") ?: "native"
+        modelType = prefs.getString("model_type", "groq") ?: "native"
         groqKey = prefs.getString("groq_key", "") ?: ""
 
         drawerLayout = findViewById(R.id.drawerLayout)
