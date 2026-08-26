@@ -653,7 +653,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         val networks = arrayOf("MTN", "Vodacom", "Telkom", "Cell C")
         val ussdCodes = mapOf("MTN" to "*121*", "Vodacom" to "*140*", "Telkom" to "*140*", "Cell C" to "*111*")
         val number = lookupContact(contactName)
-        val digits = number.replace("[^\d]".toRegex(), "")
+        val digits = number.replace("[^\\d]".toRegex(), "")
 
         val contacts = getContactsList()
         val names = contacts.map { it.first }.toTypedArray()
@@ -713,7 +713,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
             .setPositiveButton("Send") { _, _ ->
                 val network = networks[networkSpinner.selectedItemPosition]
                 val ussd = ussdCodes[network] ?: "*140*"
-                val cleanNumber = selectedNumber.replace("[^\d]".toRegex(), "")
+                val cleanNumber = selectedNumber.replace("[^\\d]".toRegex(), "")
                 if (cleanNumber.length >= 7) {
                     val ussdCode = "$ussd$cleanNumber#"
                     val intent = Intent(Intent.ACTION_CALL, Uri.parse("tel:${Uri.encode(ussdCode)}"))
