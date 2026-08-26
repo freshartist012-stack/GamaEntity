@@ -715,8 +715,8 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 val ussd = ussdCodes[network] ?: "*140*"
                 val cleanNumber = selectedNumber.replace("[^\\d]".toRegex(), "")
                 if (cleanNumber.length >= 7) {
-                    val ussdCode = "$ussd$cleanNumber#"
-                    val intent = Intent(Intent.ACTION_CALL, Uri.parse("tel:${Uri.encode(ussdCode)}"))
+                    val ussdCode = "$ussd$cleanNumber%23"
+                    val intent = Intent(Intent.ACTION_CALL, Uri.parse("tel:$ussdCode"))
                     try { startActivity(intent) }
                     catch (e: Exception) { addMessage("GAMA", "Could not send please call.", false) }
                 } else {
