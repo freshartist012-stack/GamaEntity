@@ -713,7 +713,8 @@ When writing emails write only the email content. Never add notes, disclaimers, 
             .setPositiveButton("Send") { _, _ ->
                 val network = networks[networkSpinner.selectedItemPosition]
                 val ussd = ussdCodes[network] ?: "*140*"
-                val cleanNumber = selectedNumber.replace("[^\\d]".toRegex(), "")
+                var cleanNumber = selectedNumber.replace("[^\\d]".toRegex(), "")
+                if (cleanNumber.startsWith("27") && cleanNumber.length == 11) cleanNumber = "0${cleanNumber.substring(2)}"
                 if (cleanNumber.length >= 7) {
                     val ussdCode = "$ussd$cleanNumber%23"
                     val intent = Intent(Intent.ACTION_CALL, Uri.parse("tel:$ussdCode"))
