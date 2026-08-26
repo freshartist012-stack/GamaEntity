@@ -573,6 +573,81 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         }, 800)
     }
 
+    private fun getContactsList(): List<Pair<String, String>> {
+        val contacts = mutableListOf<Pair<String, String>>()
+        try {
+            contentResolver.query(
+                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                arrayOf(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME, ContactsContract.CommonDataKinds.Phone.NUMBER),
+                null, null, ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC"
+            )?.use {
+                while (it.moveToNext()) {
+                    val name = it.getString(0) ?: continue
+                    val number = it.getString(1) ?: continue
+                    contacts.add(Pair(name, number))
+                }
+            }
+        } catch (e: Exception) {}
+        return contacts
+    }
+
+    private fun showCallConfirmation(contactName: String, number: String) {
+        val contacts = getContactsList()
+        val names = contacts.map { it.first }.toTypedArray()
+        var selectedNumber = number
+        var selectedName = contactName
+
+        val layout = android.widget.LinearLayout(this)
+        layout.orientation = android.widget.LinearLayout.VERTICAL
+        layout.setPadding(48, 16, 48, 0)
+
+        val nameView = android.widget.TextView(this)
+        nameView.text = "Calling: $selectedName"
+        nameView.textSize = 16f
+        layout.addView(nameView)
+
+        val numberView = android.widget.TextView(this)
+        numberView.text = "Number: $selectedNumber"
+        numberView.textSize = 14f
+        layout.addView(numberView)
+
+        layout.addView(android.widget.TextView(this).apply {
+            text = "Change contact:"
+            textSize = 12f
+            setTextColor(0xFF888888.toInt())
+            setPadding(0, 12, 0, 4)
+        })
+
+        val spinner = android.widget.Spinner(this)
+        val adapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, names)
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinner.adapter = adapter
+        val defaultIndex = names.indexOfFirst { it.equals(contactName, ignoreCase = true) }
+        if (defaultIndex >= 0) spinner.setSelection(defaultIndex)
+        layout.addView(spinner)
+
+        spinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: android.view.View?, position: Int, id: Long) {
+                selectedName = contacts[position].first
+                selectedNumber = formatNumber(contacts[position].second)
+                nameView.text = "Calling: $selectedName"
+                numberView.text = "Number: $selectedNumber"
+            }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Make Call?")
+            .setView(layout)
+            .setCancelable(false)
+            .setPositiveButton("Call") { _, _ ->
+                try { startActivity(Intent(Intent.ACTION_CALL, Uri.parse("tel:$selectedNumber"))) }
+                catch (e: Exception) { startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$selectedNumber"))) }
+            }
+            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
+            .show()
+    }
+
     private fun handleAction(reply: String) {
         for (line in reply.split("\n")) {
             val t = line.trim()
@@ -600,11 +675,18 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 val number = lookupContact(raw)
                 val digits = number.replace("[^\\d]".toRegex(), "")
                 if (digits.length < 7) {
-                    showContactPicker("call", "")
-                    return
+                    val contacts = getContactsList()
+                    val names = contacts.map { c -> c.first }.toTypedArray()
+                    AlertDialog.Builder(this)
+                        .setTitle("Select Contact to Call")
+                        .setItems(names) { _, which ->
+                            showCallConfirmation(contacts[which].first, formatNumber(contacts[which].second))
+                        }
+                        .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
+                        .show()
+                } else {
+                    showCallConfirmation(raw, number)
                 }
-                try { startActivity(Intent(Intent.ACTION_CALL, Uri.parse("tel:$number"))) }
-                catch (e: Exception) { startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$number"))) }
                 return
             }
 
