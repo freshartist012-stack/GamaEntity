@@ -399,6 +399,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         body.put("model", "openai/gpt-oss-20b")
         body.put("messages", messages)
         body.put("max_tokens", 1000)
+        body.put("tool_choice", "none")
                 body.put("tool_choice", "none")
         val req = Request.Builder()
             .url("https://api.groq.com/openai/v1/chat/completions")
@@ -750,6 +751,11 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 return
             }
 
+            Regex("(?i)PLEASE_CALL:(.+)").find(t)?.let {
+                showPleaseCallConfirmation(it.groupValues[1].trim())
+                return
+            }
+
             Regex("(?i)CALL:([^\\n]+)").find(t)?.let {
                 val raw = it.groupValues[1].trim()
                 val number = lookupContact(raw)
@@ -784,10 +790,6 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 return
             }
 
-            Regex("(?i)PLEASE_CALL:(.+)").find(t)?.let {
-                showPleaseCallConfirmation(it.groupValues[1].trim())
-                return
-            }
 
             Regex("(?i)FLASHLIGHT:(ON|OFF)").find(t)?.let {
                 val state = it.groupValues[1].uppercase()
