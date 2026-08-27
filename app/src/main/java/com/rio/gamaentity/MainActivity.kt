@@ -684,7 +684,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         val defaultIndex = contacts.indexOfFirst { 
             it.first.lowercase().contains(contactName.lowercase()) || 
             formatNumber(it.second) == number ||
-            it.second.replace("[^\d]".toRegex(), "").endsWith(contactName.replace("[^\d]".toRegex(), "").takeLast(7))
+            it.second.replace("[^\\d]".toRegex(), "").endsWith(contactName.replace("[^\\d]".toRegex(), "").takeLast(7))
         }
         if (defaultIndex >= 0) contactSpinner.setSelection(defaultIndex)
         layout.addView(contactSpinner)
