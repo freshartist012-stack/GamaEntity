@@ -197,6 +197,17 @@ class MainActivity : AppCompatActivity() {
         }
         drawerContent.addView(switchBtn)
 
+        val keysBtn = Button(this)
+        keysBtn.text = "API Keys"
+        keysBtn.setBackgroundColor(0xFF2E5090.toInt())
+        keysBtn.setTextColor(0xFFFFFFFF.toInt())
+        keysBtn.layoutParams = btnParams
+        keysBtn.setOnClickListener {
+            startActivity(Intent(this, KeysActivity::class.java))
+            drawerLayout.closeDrawers()
+        }
+        drawerContent.addView(keysBtn)
+
         val aboutBtn = Button(this)
         aboutBtn.text = "About"
         aboutBtn.setBackgroundColor(0xFF222244.toInt())
@@ -334,6 +345,8 @@ PLEASE_CALL:CONTACT_NAME (use this when user says "please call", "call me back",
 GMAIL:email@domain.com:Subject line here:Body text here (ALWAYS include a meaningful subject, never write the word Subject)
 GOOGLE:search terms
 YOUTUBE:search terms
+YOUTUBE_MUSIC:song or artist name
+SPOTIFY:song or artist name
 Always use actual phone number from contacts, never the name.
 When writing emails write only the email content. Never add notes, disclaimers, or parenthetical comments. If you need more information ask the user before writing the email."""
     }
@@ -815,6 +828,31 @@ When writing emails write only the email content. Never add notes, disclaimers, 
 
             Regex("(?i)YOUTUBE:(.+)").find(t)?.let {
                 startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/results?search_query=${Uri.encode(it.groupValues[1].trim())}")))
+                return
+            }
+
+            Regex("(?i)YOUTUBE_MUSIC:(.+)").find(t)?.let {
+                val query = it.groupValues[1].trim()
+                val intent = Intent(Intent.ACTION_SEARCH).apply {
+                    setPackage("com.google.android.apps.youtube.music")
+                    putExtra("query", query)
+                }
+                try { startActivity(intent) } catch (e: Exception) {
+                    startActivity(Intent(Intent.ACTION_VIEW,
+                        Uri.parse("https://music.youtube.com/search?q=${Uri.encode(query)}")))
+                }
+                return
+            }
+
+            Regex("(?i)SPOTIFY:(.+)").find(t)?.let {
+                val query = it.groupValues[1].trim()
+                val intent = Intent(Intent.ACTION_VIEW,
+                    Uri.parse("spotify:search:${Uri.encode(query)}"))
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                try { startActivity(intent) } catch (e: Exception) {
+                    startActivity(Intent(Intent.ACTION_VIEW,
+                        Uri.parse("https://open.spotify.com/search/${Uri.encode(query)}")))
+                }
                 return
             }
 
