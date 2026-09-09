@@ -409,7 +409,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
 
     private fun callGroq() {
         val body = JSONObject()
-        body.put("model", "openai/gpt-oss-20b")
+        body.put("model", "openai/gpt-oss-120b")
         body.put("messages", messages)
         body.put("max_tokens", 1000)
         body.put("tool_choice", "none")
@@ -693,10 +693,15 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         val contactAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, names)
         contactAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         contactSpinner.adapter = contactAdapter
-        val defaultIndex = contacts.indexOfFirst { 
-            it.first.lowercase().contains(contactName.lowercase()) || 
-            formatNumber(it.second) == number ||
-            it.second.replace("[^\\d]".toRegex(), "").endsWith(contactName.replace("[^\\d]".toRegex(), "").takeLast(7))
+        val cleanContactName = contactName.lowercase().trim()
+        val defaultIndex = contacts.indexOfFirst { c ->
+            val cName = c.first.lowercase()
+            val cNum = c.second.replace("[^\\d]".toRegex(), "")
+            val lookupNum = number.replace("[^\\d]".toRegex(), "")
+            cName.contains(cleanContactName) || 
+            cleanContactName.contains(cName) ||
+            (lookupNum.length >= 7 && cNum.endsWith(lookupNum.takeLast(7))) ||
+            (lookupNum.length >= 7 && lookupNum.endsWith(cNum.takeLast(7)))
         }
         if (defaultIndex >= 0) contactSpinner.setSelection(defaultIndex)
         layout.addView(contactSpinner)
@@ -740,6 +745,42 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 } else {
                     addMessage("GAMA", "Contact number not found.", false)
                 }
+            }
+            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
+            .show()
+    }
+
+    private fun showEmailConfirmation(to: String, subject: String, body: String) {
+        val layout = android.widget.LinearLayout(this)
+        layout.orientation = android.widget.LinearLayout.VERTICAL
+        layout.setPadding(48, 16, 48, 0)
+
+        val toInput = android.widget.EditText(this)
+        toInput.setText(to)
+        layout.addView(android.widget.TextView(this).apply { text = "To:"; textSize = 12f; setTextColor(0xFF888888.toInt()) })
+        layout.addView(toInput)
+
+        val subjectInput = android.widget.EditText(this)
+        subjectInput.setText(subject)
+        layout.addView(android.widget.TextView(this).apply { text = "Subject:"; textSize = 12f; setTextColor(0xFF888888.toInt()); setPadding(0,8,0,0) })
+        layout.addView(subjectInput)
+
+        val bodyInput = android.widget.EditText(this)
+        bodyInput.setText(body)
+        bodyInput.minLines = 3
+        layout.addView(android.widget.TextView(this).apply { text = "Message:"; textSize = 12f; setTextColor(0xFF888888.toInt()); setPadding(0,8,0,0) })
+        layout.addView(bodyInput)
+
+        AlertDialog.Builder(this)
+            .setTitle("Send Email?")
+            .setView(layout)
+            .setCancelable(false)
+            .setPositiveButton("Send") { _, _ ->
+                val finalTo = toInput.text.toString().trim()
+                val finalSubject = subjectInput.text.toString().trim()
+                val finalBody = bodyInput.text.toString().trim()
+                startActivity(Intent(Intent.ACTION_VIEW,
+                    Uri.parse("mailto:$finalTo?subject=${Uri.encode(finalSubject)}&body=${Uri.encode(finalBody)}")))
             }
             .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
             .show()
@@ -802,7 +843,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 val to = gm.groupValues[1].trim()
                 val subject = if (gmailThree != null) gm.groupValues[2].trim().replace(Regex("(?i)^subject[=:\\s]+"), "").trim() else "Message"
                 val body = if (gmailThree != null) gm.groupValues[3].trim() else gm.groupValues[2].trim()
-                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("mailto:$to?subject=${Uri.encode(subject)}&body=${Uri.encode(body)}")))
+                showEmailConfirmation(to, subject, body)
                 return
             }
 
