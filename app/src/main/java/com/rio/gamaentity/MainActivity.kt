@@ -371,6 +371,7 @@ WHATSAPP_CALL:NUMBER
 CALL:NUMBER
 FLASHLIGHT:ON
 FLASHLIGHT:OFF
+OPEN_APP:app name (opens any installed app by name)
 PLEASE_CALL:CONTACT_NAME (use this when user says "please call", "call me back", "callback" or "please call me" — NOT for regular calls)
             ALARM:HH:MM:Label (one time, example: ALARM:07:30:Wake up)
             ALARM:HH:MM:Label:WEEKDAYS (Monday to Friday)
@@ -608,8 +609,9 @@ When writing emails write only the email content. Never add notes, disclaimers, 
             while (isRecording && voiceModeActive) {
                 val read = audioRecord?.read(buffer, 0, buffer.size) ?: 0
                 if (read > 0) {
-                    val rms = Math.sqrt(buffer.take(read).map { it.toLong() * it }.sum().toDouble() / read)
-                    if (rms > silenceThreshold) {
+                        val rms = Math.sqrt(buffer.take(read).map { it.toLong() * it }.sum().toDouble() / read)
+                    val dynamicThreshold = if (hasSpoken) silenceThreshold else silenceThreshold * 2
+                    if (rms > dynamicThreshold) {
                         hasSpoken = true
                         silenceCount = 0
                         runOnUiThread { updateWaveform(rms.toFloat()) }
@@ -928,14 +930,15 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         contactAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         contactSpinner.adapter = contactAdapter
         val cleanContactName = contactName.lowercase().trim()
-        val defaultIndex = contacts.indexOfFirst { c ->
-            val cName = c.first.lowercase()
-            val cNum = c.second.replace("[^\\d]".toRegex(), "")
-            val lookupNum = number.replace("[^\\d]".toRegex(), "")
-            cName.contains(cleanContactName) || 
-            cleanContactName.contains(cName) ||
-            (lookupNum.length >= 7 && cNum.endsWith(lookupNum.takeLast(7))) ||
-            (lookupNum.length >= 7 && lookupNum.endsWith(cNum.takeLast(7)))
+        val lookupNum = number.replace("[^\\d]".toRegex(), "")
+        var defaultIndex = contacts.indexOfFirst { c ->
+            c.first.lowercase().contains(cleanContactName) || cleanContactName.contains(c.first.lowercase())
+        }
+        if (defaultIndex < 0 && lookupNum.length >= 7) {
+            defaultIndex = contacts.indexOfFirst { c ->
+                val cNum = c.second.replace("[^\\d]".toRegex(), "")
+                cNum.takeLast(7) == lookupNum.takeLast(7)
+            }
         }
         if (defaultIndex >= 0) contactSpinner.setSelection(defaultIndex)
         layout.addView(contactSpinner)
@@ -1039,6 +1042,23 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 val uri = Uri.parse("https://api.whatsapp.com/send?phone=$number")
                 try { startActivity(Intent(Intent.ACTION_VIEW, uri).apply { setPackage("com.whatsapp") }) }
                 catch (e: Exception) { addMessage("GAMA", "WhatsApp not found.", false) }
+                return
+            }
+
+            Regex("(?i)OPEN_APP:(.+)").find(t)?.let {
+                val appName = it.groupValues[1].trim().lowercase()
+                val pm = packageManager
+                val apps = pm.getInstalledApplications(android.content.pm.PackageManager.GET_META_DATA)
+                val found = apps.firstOrNull { app ->
+                    pm.getApplicationLabel(app).toString().lowercase().contains(appName)
+                }
+                if (found != null) {
+                    val launchIntent = pm.getLaunchIntentForPackage(found.packageName)
+                    if (launchIntent != null) startActivity(launchIntent)
+                    else addMessage("GAMA", "Could not open ${it.groupValues[1].trim()}.", false)
+                } else {
+                    addMessage("GAMA", "App not found: ${it.groupValues[1].trim()}.", false)
+                }
                 return
             }
 
