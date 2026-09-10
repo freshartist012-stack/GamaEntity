@@ -63,6 +63,9 @@ class MainActivity : AppCompatActivity() {
     private var modelType = "groq"
     private var groqKey = ""
     private var systemPromptAdded = false
+    private var voiceModeActive = false
+    private var audioRecord: android.media.AudioRecord? = null
+    private var isRecording = false
     private lateinit var typingIndicator: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -93,6 +96,35 @@ class MainActivity : AppCompatActivity() {
 
         typingIndicator = findViewById(R.id.typingIndicator)
         sendButton.setOnClickListener { sendMessage() }
+
+        val voiceModeBtn = android.widget.Button(this).apply {
+            text = "🎙 Voice Mode"
+            textSize = 12f
+            setBackgroundColor(0xFFCEBAA2.toInt())
+            setTextColor(0xFFFFFFFF.toInt())
+        }
+        val voiceParams = android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        voiceParams.setMargins(16, 4, 16, 4)
+        voiceModeBtn.layoutParams = voiceParams
+
+        val inputContainer = inputField.parent as? android.widget.LinearLayout
+        (inputContainer?.parent as? android.widget.LinearLayout)?.addView(voiceModeBtn,
+            (inputContainer?.parent as android.widget.LinearLayout).indexOfChild(inputContainer))
+
+        voiceModeBtn.setOnClickListener {
+            if (voiceModeActive) {
+                stopWhisperMode()
+                voiceModeBtn.text = "🎙 Voice Mode"
+                voiceModeBtn.setBackgroundColor(0xFFCEBAA2.toInt())
+            } else {
+                startWhisperMode()
+                voiceModeBtn.text = "⏹ Stop Voice"
+                voiceModeBtn.setBackgroundColor(0xFFCC0000.toInt())
+            }
+        }
         micButton.setOnClickListener { startVoiceInput() }
 
         showDataDisclosureIfNeeded()
@@ -451,6 +483,21 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         addMessage("GAMA", reply, false)
         handleAction(reply)
         saveCurrentChat()
+        if (voiceModeActive && ttsReady) {
+            val clean = reply.replace(Regex("[*_#]"), "").take(300)
+            tts.speak(clean, TextToSpeech.QUEUE_FLUSH, null, "tts_done")
+            tts.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                override fun onStart(utteranceId: String?) {}
+                override fun onDone(utteranceId: String?) {
+                    runOnUiThread { if (voiceModeActive && !handleAction(reply).let { true }) listenAndTranscribe() }
+                }
+                override fun onError(utteranceId: String?) {
+                    runOnUiThread { if (voiceModeActive) listenAndTranscribe() }
+                }
+            })
+        } else if (voiceModeActive) {
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ listenAndTranscribe() }, 500)
+        }
     }
 
     private fun showContactPicker(action: String, message: String) {
@@ -493,6 +540,171 @@ When writing emails write only the email content. Never add notes, disclaimers, 
 
 
 
+
+    private fun startWhisperMode() {
+        voiceModeActive = true
+        addMessage("GAMA", "Voice mode on. Speak now.", false)
+        if (ttsReady) tts.speak("Voice mode on", TextToSpeech.QUEUE_FLUSH, null, null)
+        listenAndTranscribe()
+    }
+
+    private fun stopWhisperMode() {
+        voiceModeActive = false
+        isRecording = false
+        audioRecord?.stop()
+        audioRecord?.release()
+        audioRecord = null
+        addMessage("GAMA", "Voice mode off.", false)
+    }
+
+    private fun listenAndTranscribe() {
+        if (!voiceModeActive) return
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            stopWhisperMode()
+            return
+        }
+
+        val sampleRate = 16000
+        val channelConfig = android.media.AudioFormat.CHANNEL_IN_MONO
+        val audioFormat = android.media.AudioFormat.ENCODING_PCM_16BIT
+        val bufferSize = android.media.AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat) * 4
+
+        audioRecord = android.media.AudioRecord(
+            android.media.MediaRecorder.AudioSource.MIC,
+            sampleRate, channelConfig, audioFormat, bufferSize
+        )
+
+        val audioData = java.io.ByteArrayOutputStream()
+        isRecording = true
+        audioRecord?.startRecording()
+
+        Thread {
+            val buffer = ShortArray(bufferSize / 2)
+            var silenceCount = 0
+            val silenceThreshold = 300
+            val maxSilenceFrames = 30
+            var hasSpoken = false
+
+            while (isRecording && voiceModeActive) {
+                val read = audioRecord?.read(buffer, 0, buffer.size) ?: 0
+                if (read > 0) {
+                    val rms = Math.sqrt(buffer.take(read).map { it.toLong() * it }.sum().toDouble() / read)
+                    if (rms > silenceThreshold) {
+                        hasSpoken = true
+                        silenceCount = 0
+                    } else if (hasSpoken) {
+                        silenceCount++
+                    }
+
+                    val byteBuffer = java.nio.ByteBuffer.allocate(read * 2)
+                    byteBuffer.order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                    buffer.take(read).forEach { byteBuffer.putShort(it) }
+                    audioData.write(byteBuffer.array())
+
+                    if (hasSpoken && silenceCount > maxSilenceFrames) {
+                        isRecording = false
+                    }
+                }
+            }
+
+            audioRecord?.stop()
+            audioRecord?.release()
+            audioRecord = null
+
+            if (hasSpoken && voiceModeActive) {
+                runOnUiThread { addMessage("GAMA", "Transcribing...", false) }
+                sendToWhisper(audioData.toByteArray(), sampleRate)
+            } else if (voiceModeActive) {
+                runOnUiThread { listenAndTranscribe() }
+            }
+        }.start()
+    }
+
+    private fun sendToWhisper(audioBytes: ByteArray, sampleRate: Int) {
+        try {
+            val wavBytes = createWavFile(audioBytes, sampleRate)
+            val requestBody = okhttp3.MultipartBody.Builder()
+                .setType(okhttp3.MultipartBody.FORM)
+                .addFormDataPart("file", "audio.wav",
+                    wavBytes.toRequestBody("audio/wav".toMediaType()))
+                .addFormDataPart("model", "whisper-large-v3-turbo")
+                .addFormDataPart("language", "en")
+                .build()
+
+            val request = Request.Builder()
+                .url("https://api.groq.com/openai/v1/audio/transcriptions")
+                .addHeader("Authorization", "Bearer $groqKey")
+                .post(requestBody)
+                .build()
+
+            client.newCall(request).enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    runOnUiThread {
+                        addMessage("GAMA", "Transcription failed. Try again.", false)
+                        if (voiceModeActive) listenAndTranscribe()
+                    }
+                }
+                override fun onResponse(call: Call, response: Response) {
+                    val body = response.body?.string()
+                    runOnUiThread {
+                        try {
+                            val transcript = JSONObject(body ?: "").getString("text").trim()
+                            if (transcript.isNotEmpty()) {
+                                addMessage("You", transcript, true)
+                                val userMsg = JSONObject()
+                                userMsg.put("role", "user")
+                                userMsg.put("content", transcript)
+                                if (!systemPromptAdded) {
+                                    val systemMsg = JSONObject()
+                                    systemMsg.put("role", "system")
+                                    systemMsg.put("content", buildSystemPrompt())
+                                    messages.put(systemMsg)
+                                    systemPromptAdded = true
+                                }
+                                messages.put(userMsg)
+                                sendButton.isEnabled = false
+                                callGroq()
+                            } else if (voiceModeActive) {
+                                listenAndTranscribe()
+                            }
+                        } catch (e: Exception) {
+                            if (voiceModeActive) listenAndTranscribe()
+                        }
+                    }
+                }
+            })
+        } catch (e: Exception) {
+            runOnUiThread {
+                addMessage("GAMA", "Audio error. Try again.", false)
+                if (voiceModeActive) listenAndTranscribe()
+            }
+        }
+    }
+
+    private fun createWavFile(pcmData: ByteArray, sampleRate: Int): ByteArray {
+        val totalDataLen = pcmData.size + 36
+        val byteRate = sampleRate * 2
+        val out = java.io.ByteArrayOutputStream()
+        val header = byteArrayOf(
+            'R'.code.toByte(), 'I'.code.toByte(), 'F'.code.toByte(), 'F'.code.toByte(),
+            (totalDataLen and 0xff).toByte(), (totalDataLen shr 8 and 0xff).toByte(),
+            (totalDataLen shr 16 and 0xff).toByte(), (totalDataLen shr 24 and 0xff).toByte(),
+            'W'.code.toByte(), 'A'.code.toByte(), 'V'.code.toByte(), 'E'.code.toByte(),
+            'f'.code.toByte(), 'm'.code.toByte(), 't'.code.toByte(), ' '.code.toByte(),
+            16, 0, 0, 0, 1, 0, 1, 0,
+            (sampleRate and 0xff).toByte(), (sampleRate shr 8 and 0xff).toByte(),
+            (sampleRate shr 16 and 0xff).toByte(), (sampleRate shr 24 and 0xff).toByte(),
+            (byteRate and 0xff).toByte(), (byteRate shr 8 and 0xff).toByte(),
+            (byteRate shr 16 and 0xff).toByte(), (byteRate shr 24 and 0xff).toByte(),
+            2, 0, 16, 0,
+            'd'.code.toByte(), 'a'.code.toByte(), 't'.code.toByte(), 'a'.code.toByte(),
+            (pcmData.size and 0xff).toByte(), (pcmData.size shr 8 and 0xff).toByte(),
+            (pcmData.size shr 16 and 0xff).toByte(), (pcmData.size shr 24 and 0xff).toByte()
+        )
+        out.write(header)
+        out.write(pcmData)
+        return out.toByteArray()
+    }
 
     private fun startVoiceConfirmation(callback: (String) -> Unit) {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
