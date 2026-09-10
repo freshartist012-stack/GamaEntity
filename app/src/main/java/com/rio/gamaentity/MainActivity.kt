@@ -64,6 +64,7 @@ class MainActivity : AppCompatActivity() {
     private var groqKey = ""
     private var systemPromptAdded = false
     private var voiceModeActive = false
+    private lateinit var waveformView: WaveformView
     private var audioRecord: android.media.AudioRecord? = null
     private var isRecording = false
     private lateinit var typingIndicator: TextView
@@ -95,6 +96,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         typingIndicator = findViewById(R.id.typingIndicator)
+        waveformView = findViewById(R.id.waveformView)
         sendButton.setOnClickListener { sendMessage() }
 
         val voiceModeBtn = android.widget.Button(this).apply {
@@ -483,20 +485,27 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         addMessage("GAMA", reply, false)
         handleAction(reply)
         saveCurrentChat()
-        if (voiceModeActive && ttsReady) {
-            val clean = reply.replace(Regex("[*_#]"), "").take(300)
-            tts.speak(clean, TextToSpeech.QUEUE_FLUSH, null, "tts_done")
-            tts.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
-                override fun onStart(utteranceId: String?) {}
-                override fun onDone(utteranceId: String?) {
-                    runOnUiThread { if (voiceModeActive && !handleAction(reply).let { true }) listenAndTranscribe() }
-                }
-                override fun onError(utteranceId: String?) {
-                    runOnUiThread { if (voiceModeActive) listenAndTranscribe() }
-                }
-            })
-        } else if (voiceModeActive) {
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ listenAndTranscribe() }, 500)
+        if (voiceModeActive) {
+            val hasAction = reply.contains(Regex("(?i)(WHATSAPP:|CALL:|GMAIL:|GOOGLE:|YOUTUBE:|FLASHLIGHT:|PLEASE_CALL:|ALARM:)"))
+            if (ttsReady && !hasAction) {
+                val clean = reply.replace(Regex("[*_#]"), "").take(300)
+                tts.speak(clean, TextToSpeech.QUEUE_FLUSH, null, "voice_done")
+                tts.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                    override fun onStart(utteranceId: String?) {}
+                    override fun onDone(utteranceId: String?) {
+                        runOnUiThread {
+                            if (voiceModeActive) {
+                                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ listenAndTranscribe() }, 500)
+                            }
+                        }
+                    }
+                    override fun onError(utteranceId: String?) {
+                        runOnUiThread { if (voiceModeActive) listenAndTranscribe() }
+                    }
+                })
+            } else if (!hasAction) {
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ listenAndTranscribe() }, 800)
+            }
         }
     }
 
@@ -541,8 +550,18 @@ When writing emails write only the email content. Never add notes, disclaimers, 
 
 
 
+    private fun updateWaveform(rms: Float) {
+        if (voiceModeActive) {
+            waveformView.visibility = android.view.View.VISIBLE
+            waveformView.updateAmplitude(rms)
+        } else {
+            waveformView.visibility = android.view.View.GONE
+        }
+    }
+
     private fun startWhisperMode() {
         voiceModeActive = true
+        waveformView.visibility = android.view.View.VISIBLE
         addMessage("GAMA", "Voice mode on. Speak now.", false)
         if (ttsReady) tts.speak("Voice mode on", TextToSpeech.QUEUE_FLUSH, null, null)
         listenAndTranscribe()
@@ -550,6 +569,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
 
     private fun stopWhisperMode() {
         voiceModeActive = false
+        waveformView.visibility = android.view.View.GONE
         isRecording = false
         audioRecord?.stop()
         audioRecord?.release()
@@ -592,8 +612,10 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                     if (rms > silenceThreshold) {
                         hasSpoken = true
                         silenceCount = 0
+                        runOnUiThread { updateWaveform(rms.toFloat()) }
                     } else if (hasSpoken) {
                         silenceCount++
+                        runOnUiThread { updateWaveform(0f) }
                     }
 
                     val byteBuffer = java.nio.ByteBuffer.allocate(read * 2)

@@ -60,6 +60,12 @@
 
         </ScrollView>
 
+        <com.rio.gamaentity.WaveformView
+            android:id="@+id/waveformView"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:visibility="gone"/>
+
         <TextView
             android:id="@+id/typingIndicator"
             android:layout_width="wrap_content"
