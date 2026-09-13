@@ -242,9 +242,14 @@ class MainActivity : AppCompatActivity() {
                 notifBtn.text = "Start Notification Mic"
                 notifBtn.setBackgroundColor(0xFF2E7D32.toInt())
             } else {
-                startForegroundService(Intent(this, VoiceNotificationService::class.java).apply { action = VoiceNotificationService.ACTION_START_LISTENING })
-                notifBtn.text = "Stop Notification Mic"
-                notifBtn.setBackgroundColor(0xFFCC0000.toInt())
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                    startForegroundService(Intent(this, VoiceNotificationService::class.java).apply { action = VoiceNotificationService.ACTION_START_LISTENING })
+                    notifBtn.text = "Stop Notification Mic"
+                    notifBtn.setBackgroundColor(0xFFCC0000.toInt())
+                } else {
+                    ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), 101)
+                    Toast.makeText(this, "Please grant microphone permission first", Toast.LENGTH_SHORT).show()
+                }
             }
             drawerLayout.closeDrawers()
         }
