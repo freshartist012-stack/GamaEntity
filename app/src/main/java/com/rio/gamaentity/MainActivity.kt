@@ -488,7 +488,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         saveCurrentChat()
         if (voiceModeActive) {
             val hasAction = reply.contains(Regex("(?i)(WHATSAPP:|CALL:|GMAIL:|GOOGLE:|YOUTUBE:|FLASHLIGHT:|PLEASE_CALL:|ALARM:)"))
-            if (ttsReady && !hasAction) {
+            if (ttsReady) {
                 val clean = reply.replace(Regex("[*_#]"), "").take(300)
                 tts.speak(clean, TextToSpeech.QUEUE_FLUSH, null, "voice_done")
                 tts.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
@@ -496,7 +496,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                     override fun onDone(utteranceId: String?) {
                         runOnUiThread {
                             if (voiceModeActive) {
-                                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ listenAndTranscribe() }, 500)
+                                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ listenAndTranscribe() }, if (hasAction) 2000 else 500)
                             }
                         }
                     }
@@ -504,8 +504,8 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                         runOnUiThread { if (voiceModeActive) listenAndTranscribe() }
                     }
                 })
-            } else if (!hasAction) {
-                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ listenAndTranscribe() }, 800)
+            } else {
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ listenAndTranscribe() }, if (hasAction) 2000 else 800)
             }
         }
     }
@@ -1077,10 +1077,14 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 val raw = it.groupValues[1].trim()
                 val resolvedNumber = lookupContact(raw)
                 val contacts = getContactsList()
+                val rawDigits = raw.replace("[^\\d]".toRegex(), "")
+                val resolvedDigits = resolvedNumber.replace("[^\\d]".toRegex(), "")
                 val resolvedName = contacts.firstOrNull { c ->
                     val cNum = c.second.replace("[^\\d]".toRegex(), "")
-                    val rNum = resolvedNumber.replace("[^\\d]".toRegex(), "")
-                    cNum.takeLast(7) == rNum.takeLast(7) || c.first.lowercase().contains(raw.lowercase())
+                    val nameMatch = c.first.lowercase().contains(raw.lowercase())
+                    val numberMatch = resolvedDigits.length >= 7 && cNum.takeLast(7) == resolvedDigits.takeLast(7)
+                    val rawNumberMatch = rawDigits.length >= 7 && cNum.takeLast(7) == rawDigits.takeLast(7)
+                    nameMatch || numberMatch || rawNumberMatch
                 }?.first ?: raw
                 showPleaseCallConfirmation(resolvedName)
                 return
