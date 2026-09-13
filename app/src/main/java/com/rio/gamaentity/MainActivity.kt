@@ -372,7 +372,7 @@ CALL:NUMBER
 FLASHLIGHT:ON
 FLASHLIGHT:OFF
 OPEN_APP:app name (opens any installed app by name)
-PLEASE_CALL:CONTACT_NAME (use this when user says "please call", "call me back", "callback" or "please call me" — NOT for regular calls)
+PLEASE_CALL:CONTACT_NAME:NETWORK (network is optional, only include if user specifies e.g. PLEASE_CALL:Devon:MTN or PLEASE_CALL:Devon if no network specified)
             ALARM:HH:MM:Label (one time, example: ALARM:07:30:Wake up)
             ALARM:HH:MM:Label:WEEKDAYS (Monday to Friday)
             ALARM:HH:MM:Label:DAILY (every day)
@@ -908,7 +908,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
             .show()
     }
 
-    private fun showPleaseCallConfirmation(contactName: String, preResolvedNumber: String = "") {
+    private fun showPleaseCallConfirmation(contactName: String, preResolvedNumber: String = "", specifiedNetwork: String = "") {
         val networks = arrayOf("MTN", "Vodacom", "Telkom", "Cell C")
         val ussdCodes = mapOf("MTN" to "*121*", "Vodacom" to "*140*", "Telkom" to "*140*", "Cell C" to "*111*")
         val number = if (preResolvedNumber.isNotEmpty()) preResolvedNumber else lookupContact(contactName)
@@ -934,6 +934,10 @@ When writing emails write only the email content. Never add notes, disclaimers, 
             setTextColor(0xFF888888.toInt())
             setPadding(0, 8, 0, 4)
         })
+
+        val networkDefaultIndex = if (specifiedNetwork.isNotEmpty()) {
+            networks.indexOfFirst { it.lowercase().contains(specifiedNetwork.lowercase()) }.coerceAtLeast(0)
+        } else 0
 
         val contactSpinner = android.widget.Spinner(this)
         val contactAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, names)
@@ -967,6 +971,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         val networkAdapter = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, networks)
         networkAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         networkSpinner.adapter = networkAdapter
+        networkSpinner.setSelection(networkDefaultIndex)
         layout.addView(networkSpinner)
 
         contactSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
@@ -1076,8 +1081,9 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 return
             }
 
-            Regex("(?i)PLEASE_CALL:(.+)").find(t)?.let {
+            Regex("(?i)PLEASE_CALL:([^:]+)(?::(.+))?").find(t)?.let {
                 val raw = it.groupValues[1].trim()
+                val specifiedNetwork = it.groupValues[2].trim().ifEmpty { "" }
                 val resolvedNumber = lookupContact(raw)
                 val contacts = getContactsList()
                 val rawDigits = raw.replace("[^\\d]".toRegex(), "")
@@ -1089,7 +1095,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                     val rawNumberMatch = rawDigits.length >= 7 && cNum.takeLast(7) == rawDigits.takeLast(7)
                     nameMatch || numberMatch || rawNumberMatch
                 }?.first ?: raw
-                showPleaseCallConfirmation(resolvedName, resolvedNumber)
+                showPleaseCallConfirmation(resolvedName, resolvedNumber, specifiedNetwork)
                 return
             }
 
