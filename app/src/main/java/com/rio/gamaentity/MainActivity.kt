@@ -602,16 +602,26 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         Thread {
             val buffer = ShortArray(bufferSize / 2)
             var silenceCount = 0
-            val silenceThreshold = 300
-            val maxSilenceFrames = 30
+            var ambientSum = 0.0
+            var ambientCount = 0
+            var ambientThreshold = 1200.0
+            val maxSilenceFrames = 45
             var hasSpoken = false
 
             while (isRecording && voiceModeActive) {
                 val read = audioRecord?.read(buffer, 0, buffer.size) ?: 0
                 if (read > 0) {
                         val rms = Math.sqrt(buffer.take(read).map { it.toLong() * it }.sum().toDouble() / read)
-                    val dynamicThreshold = if (hasSpoken) silenceThreshold else silenceThreshold * 2
-                    if (rms > dynamicThreshold) {
+                    if (ambientCount < 10) {
+                        ambientSum += rms
+                        ambientCount++
+                        if (ambientCount == 10) {
+                            ambientThreshold = (ambientSum / 10) * 3
+                            ambientThreshold = ambientThreshold.coerceIn(800.0, 2500.0)
+                        }
+                    }
+                    val speechThreshold = if (hasSpoken) ambientThreshold else ambientThreshold * 1.5
+                    if (rms > speechThreshold) {
                         hasSpoken = true
                         silenceCount = 0
                         runOnUiThread { updateWaveform(rms.toFloat()) }
