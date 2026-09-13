@@ -1048,12 +1048,13 @@ When writing emails write only the email content. Never add notes, disclaimers, 
             Regex("(?i)OPEN_APP:(.+)").find(t)?.let {
                 val appName = it.groupValues[1].trim().lowercase()
                 val pm = packageManager
-                val apps = pm.getInstalledApplications(android.content.pm.PackageManager.GET_META_DATA)
-                val found = apps.firstOrNull { app ->
-                    pm.getApplicationLabel(app).toString().lowercase().contains(appName)
+                val mainIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+                val launchableApps = pm.queryIntentActivities(mainIntent, 0)
+                val found = launchableApps.firstOrNull { ri ->
+                    ri.loadLabel(pm).toString().lowercase().contains(appName)
                 }
                 if (found != null) {
-                    val launchIntent = pm.getLaunchIntentForPackage(found.packageName)
+                    val launchIntent = pm.getLaunchIntentForPackage(found.activityInfo.packageName)
                     if (launchIntent != null) startActivity(launchIntent)
                     else addMessage("GAMA", "Could not open ${it.groupValues[1].trim()}.", false)
                 } else {
@@ -1063,7 +1064,15 @@ When writing emails write only the email content. Never add notes, disclaimers, 
             }
 
             Regex("(?i)PLEASE_CALL:(.+)").find(t)?.let {
-                showPleaseCallConfirmation(it.groupValues[1].trim())
+                val raw = it.groupValues[1].trim()
+                val resolvedNumber = lookupContact(raw)
+                val contacts = getContactsList()
+                val resolvedName = contacts.firstOrNull { c ->
+                    val cNum = c.second.replace("[^\\d]".toRegex(), "")
+                    val rNum = resolvedNumber.replace("[^\\d]".toRegex(), "")
+                    cNum.takeLast(7) == rNum.takeLast(7) || c.first.lowercase().contains(raw.lowercase())
+                }?.first ?: raw
+                showPleaseCallConfirmation(resolvedName)
                 return
             }
 
