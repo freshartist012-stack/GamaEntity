@@ -908,10 +908,10 @@ When writing emails write only the email content. Never add notes, disclaimers, 
             .show()
     }
 
-    private fun showPleaseCallConfirmation(contactName: String) {
+    private fun showPleaseCallConfirmation(contactName: String, preResolvedNumber: String = "") {
         val networks = arrayOf("MTN", "Vodacom", "Telkom", "Cell C")
         val ussdCodes = mapOf("MTN" to "*121*", "Vodacom" to "*140*", "Telkom" to "*140*", "Cell C" to "*111*")
-        val number = lookupContact(contactName)
+        val number = if (preResolvedNumber.isNotEmpty()) preResolvedNumber else lookupContact(contactName)
         val digits = number.replace("[^\\d]".toRegex(), "")
 
         val contacts = getContactsList()
@@ -1086,7 +1086,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                     val rawNumberMatch = rawDigits.length >= 7 && cNum.takeLast(7) == rawDigits.takeLast(7)
                     nameMatch || numberMatch || rawNumberMatch
                 }?.first ?: raw
-                showPleaseCallConfirmation(resolvedName)
+                showPleaseCallConfirmation(resolvedName, resolvedNumber)
                 return
             }
 
