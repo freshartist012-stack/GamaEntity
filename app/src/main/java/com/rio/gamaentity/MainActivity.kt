@@ -250,24 +250,6 @@ class MainActivity : AppCompatActivity() {
         }
         drawerContent.addView(notifBtn)
 
-        val notifBtn = Button(this)
-        notifBtn.text = if (VoiceNotificationService.isRunning) "Stop Notification Mic" else "Start Notification Mic"
-        notifBtn.setBackgroundColor(if (VoiceNotificationService.isRunning) 0xFFCC0000.toInt() else 0xFF2E7D32.toInt())
-        notifBtn.setTextColor(0xFFFFFFFF.toInt())
-        notifBtn.layoutParams = btnParams
-        notifBtn.setOnClickListener {
-            if (VoiceNotificationService.isRunning) {
-                startService(Intent(this, VoiceNotificationService::class.java).apply { action = VoiceNotificationService.ACTION_STOP_SERVICE })
-                notifBtn.text = "Start Notification Mic"
-                notifBtn.setBackgroundColor(0xFF2E7D32.toInt())
-            } else {
-                startForegroundService(Intent(this, VoiceNotificationService::class.java).apply { action = VoiceNotificationService.ACTION_START_LISTENING })
-                notifBtn.text = "Stop Notification Mic"
-                notifBtn.setBackgroundColor(0xFFCC0000.toInt())
-            }
-            drawerLayout.closeDrawers()
-        }
-        drawerContent.addView(notifBtn)
 
         val keysBtn = Button(this)
         keysBtn.text = "API Keys"
