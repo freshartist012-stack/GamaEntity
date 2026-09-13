@@ -249,10 +249,11 @@ class VoiceNotificationService : Service() {
                     updateNotification(reply.take(80))
                     handleActionNoConfirmation(reply)
 
-                    val tts = android.speech.tts.TextToSpeech(this@VoiceNotificationService) { status ->
+                    var ttsEngine: android.speech.tts.TextToSpeech? = null
+                    ttsEngine = android.speech.tts.TextToSpeech(this@VoiceNotificationService) { status ->
                         if (status == android.speech.tts.TextToSpeech.SUCCESS) {
                             val clean = reply.replace(Regex("[*_#]"), "").take(300)
-                            tts.speak(clean, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "notif_done")
+                            ttsEngine?.speak(clean, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "notif_done")
                         }
                     }
                     handler.postDelayed({ resumeListening() }, 3000)
