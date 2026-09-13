@@ -941,13 +941,16 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         contactSpinner.adapter = contactAdapter
         val cleanContactName = contactName.lowercase().trim()
         val lookupNum = number.replace("[^\\d]".toRegex(), "")
-        var defaultIndex = contacts.indexOfFirst { c ->
-            c.first.lowercase().contains(cleanContactName) || cleanContactName.contains(c.first.lowercase())
-        }
-        if (defaultIndex < 0 && lookupNum.length >= 7) {
+        var defaultIndex = -1
+        if (lookupNum.length >= 7) {
             defaultIndex = contacts.indexOfFirst { c ->
                 val cNum = c.second.replace("[^\\d]".toRegex(), "")
                 cNum.takeLast(7) == lookupNum.takeLast(7)
+            }
+        }
+        if (defaultIndex < 0) {
+            defaultIndex = contacts.indexOfFirst { c ->
+                c.first.lowercase().contains(cleanContactName) || cleanContactName.contains(c.first.lowercase())
             }
         }
         if (defaultIndex >= 0) contactSpinner.setSelection(defaultIndex)
