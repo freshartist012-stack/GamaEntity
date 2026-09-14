@@ -118,13 +118,19 @@ class MainActivity : AppCompatActivity() {
 
         voiceModeBtn.setOnClickListener {
             if (voiceModeActive) {
-                stopWhisperMode()
+                voiceModeActive = false
+                waveformView.visibility = android.view.View.GONE
                 voiceModeBtn.text = "🎙 Voice Mode"
                 voiceModeBtn.setBackgroundColor(0xFFCEBAA2.toInt())
+                addMessage("GAMA", "Voice mode off.", false)
             } else {
-                startWhisperMode()
+                voiceModeActive = true
+                waveformView.visibility = android.view.View.VISIBLE
                 voiceModeBtn.text = "⏹ Stop Voice"
                 voiceModeBtn.setBackgroundColor(0xFFCC0000.toInt())
+                addMessage("GAMA", "Voice mode on. Speak now.", false)
+                if (ttsReady) tts.speak("Voice mode on", TextToSpeech.QUEUE_FLUSH, null, null)
+                listenWithSpeechRecognizer()
             }
         }
         micButton.setOnClickListener { startVoiceInput() }
