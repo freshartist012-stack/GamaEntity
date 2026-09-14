@@ -382,8 +382,34 @@ class VoiceNotificationService : Service() {
         }
     }
 
+    private fun getContacts(): String {
+        val sb = StringBuilder()
+        try {
+            contentResolver.query(
+                android.provider.ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                arrayOf(android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                    android.provider.ContactsContract.CommonDataKinds.Phone.NUMBER),
+                null, null,
+                android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC"
+            )?.use {
+                while (it.moveToNext()) {
+                    val name = it.getString(0) ?: continue
+                    val number = it.getString(1) ?: continue
+                    sb.append("$name: $number
+")
+                }
+            }
+        } catch (e: Exception) {}
+        return sb.toString().take(3000)
+    }
+
     private fun buildSystemPrompt(userName: String): String {
+        val contacts = getContacts()
+        val contactsSection = if (contacts.isNotEmpty()) "CONTACTS:
+$contacts
+" else ""
         return """You are GAMA, an AI voice agent on Android. User: $userName. Be concise and natural.
+$contactsSection
 Only output a command when explicitly asked. Commands:
 WHATSAPP:NUMBER:MESSAGE
 CALL:NUMBER
@@ -394,7 +420,7 @@ YOUTUBE_MUSIC:song or artist
 SPOTIFY:song or artist
 OPEN_APP:app name
 ALARM:HH:MM:Label
-Always use phone numbers from contacts, never contact names in commands."""
+Always use actual phone numbers from contacts, never contact names."""
     }
 
     private fun saveChat(content: String, role: String) {
