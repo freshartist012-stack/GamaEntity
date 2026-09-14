@@ -521,16 +521,16 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                     override fun onDone(utteranceId: String?) {
                         runOnUiThread {
                             if (voiceModeActive) {
-                                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ listenAndTranscribe() }, if (hasAction) 2000 else 500)
+                                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ listenWithSpeechRecognizer() }, if (hasAction) 2000 else 500)
                             }
                         }
                     }
                     override fun onError(utteranceId: String?) {
-                        runOnUiThread { if (voiceModeActive) listenAndTranscribe() }
+                        runOnUiThread { if (voiceModeActive) listenWithSpeechRecognizer() }
                     }
                 })
             } else {
-                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ listenAndTranscribe() }, if (hasAction) 2000 else 800)
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ listenWithSpeechRecognizer() }, if (hasAction) 2000 else 800)
             }
         }
     }
@@ -601,6 +601,54 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         audioRecord?.release()
         audioRecord = null
         addMessage("GAMA", "Voice mode off.", false)
+    }
+
+    private fun listenWithSpeechRecognizer() {
+        if (!voiceModeActive) return
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            stopWhisperMode()
+            return
+        }
+        val recognizer = SpeechRecognizer.createSpeechRecognizer(this)
+        recognizer.setRecognitionListener(object : RecognitionListener {
+            override fun onResults(results: Bundle?) {
+                val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                val transcript = matches?.firstOrNull() ?: return
+                if (transcript.isNotEmpty() && voiceModeActive) {
+                    addMessage("You", transcript, true)
+                    val userMsg = JSONObject()
+                    userMsg.put("role", "user")
+                    userMsg.put("content", transcript)
+                    if (!systemPromptAdded) {
+                        val sys = JSONObject()
+                        sys.put("role", "system")
+                        sys.put("content", buildSystemPrompt())
+                        messages.put(sys)
+                        systemPromptAdded = true
+                    }
+                    messages.put(userMsg)
+                    sendButton.isEnabled = false
+                    callGroq()
+                }
+            }
+            override fun onError(error: Int) {
+                if (voiceModeActive) {
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ listenWithSpeechRecognizer() }, 500)
+                }
+            }
+            override fun onReadyForSpeech(params: Bundle?) { updateWaveform(500f) }
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) { updateWaveform(rmsdB * 200) }
+            override fun onBufferReceived(buffer: ByteArray?) {}
+            override fun onEndOfSpeech() { updateWaveform(0f) }
+            override fun onPartialResults(partialResults: Bundle?) {}
+            override fun onEvent(eventType: Int, params: Bundle?) {}
+        })
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+        }
+        recognizer.startListening(intent)
     }
 
     private fun listenAndTranscribe() {
