@@ -637,11 +637,11 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 val read = audioRecord?.read(buffer, 0, buffer.size) ?: 0
                 if (read > 0) {
                         val rms = Math.sqrt(buffer.take(read).map { it.toLong() * it }.sum().toDouble() / read)
-                    if (ambientCount < 10) {
+                    if (ambientCount < 5) {
                         ambientSum += rms
                         ambientCount++
-                        if (ambientCount == 10) {
-                            ambientThreshold = (ambientSum / 10) * 3
+                        if (ambientCount == 5) {
+                            ambientThreshold = (ambientSum / 5) * 3
                             ambientThreshold = ambientThreshold.coerceIn(800.0, 2500.0)
                         }
                     }

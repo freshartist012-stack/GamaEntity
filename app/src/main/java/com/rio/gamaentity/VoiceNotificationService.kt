@@ -51,6 +51,7 @@ class VoiceNotificationService : Service() {
         super.onCreate()
         isRunning = true
         createNotificationChannel()
+        startForeground(NOTIF_ID, buildNotification(false))
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
         currentChatFile = "notif_chat_$timestamp.json"
         ttsEngine = TextToSpeech(this) { status ->
