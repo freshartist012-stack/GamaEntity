@@ -395,7 +395,7 @@ class VoiceNotificationService : Service() {
                 while (it.moveToNext()) {
                     val name = it.getString(0) ?: continue
                     val number = it.getString(1) ?: continue
-                    sb.append("$name: $number
+                    sb.append("$name: $number\n")
 ")
                 }
             }
@@ -405,7 +405,7 @@ class VoiceNotificationService : Service() {
 
     private fun buildSystemPrompt(userName: String): String {
         val contacts = getContacts()
-        val contactsSection = if (contacts.isNotEmpty()) "CONTACTS:
+        val contactsSection = if (contacts.isNotEmpty()) "CONTACTS:\n$contacts\n" else ""
 $contacts
 " else ""
         return """You are GAMA, an AI voice agent on Android. User: $userName. Be concise and natural.
