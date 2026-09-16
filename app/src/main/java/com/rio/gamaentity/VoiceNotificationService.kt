@@ -258,7 +258,7 @@ class VoiceNotificationService : Service() {
             }
 
             // Alarm — works from background with SKIP_UI
-            Regex("(?i)ALARM:(\d{1,2}):(\d{2})(?::(.+))?").find(t)?.let {
+            Regex("(?i)ALARM:(\\d{1,2}):(\\d{2})(?::(.+))?").find(t)?.let {
                 val hour = it.groupValues[1].toIntOrNull() ?: return
                 val minute = it.groupValues[2].toIntOrNull() ?: return
                 try {
