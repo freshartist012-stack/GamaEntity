@@ -274,14 +274,24 @@ class VoiceNotificationService : Service() {
             }
         }
 
-        // Everything else — launch GAMA Entity to handle it
+        // Everything else — use pending intent via notification tap to launch GAMA
         val hasCommand = reply.contains(Regex("(?i)(WHATSAPP:|CALL:|GMAIL:|GOOGLE:|YOUTUBE:|OPEN_APP:|SPOTIFY:|YOUTUBE_MUSIC:|PLEASE_CALL:)"))
         if (hasCommand) {
-            val intent = Intent(this, MainActivity::class.java).apply {
+            val launchIntent = Intent(this, MainActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 putExtra("notif_command", reply)
             }
-            startActivity(intent)
+            val pendingIntent = android.app.PendingIntent.getActivity(this, 99, launchIntent,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE)
+            val notif = androidx.core.app.NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("GAMA — Tap to execute")
+                .setContentText(reply.take(80))
+                .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+                .setContentIntent(pendingIntent)
+                .setAutoCancel(true)
+                .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
+                .build()
+            getSystemService(android.app.NotificationManager::class.java).notify(2001, notif)
         }
     }
 
