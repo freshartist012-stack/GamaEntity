@@ -245,14 +245,10 @@ class VoiceNotificationService : Service() {
     }
 
     private fun handleAction(reply: String) {
-        // Send to MainActivity to handle — avoids background activity restriction
-        val intent = Intent(this, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-            putExtra("notif_command", reply)
-        }
-        // Only flashlight handled here directly — everything else goes to MainActivity
         for (line in reply.split("\n")) {
             val t = line.trim()
+
+            // Flashlight — works from background directly
             Regex("(?i)FLASHLIGHT:(ON|OFF)").find(t)?.let {
                 try {
                     val cm = getSystemService(Context.CAMERA_SERVICE) as android.hardware.camera2.CameraManager
@@ -260,17 +256,33 @@ class VoiceNotificationService : Service() {
                 } catch (e: Exception) {}
                 return
             }
-        }
-        // For all other commands send broadcast to MainActivity
-        val hasCommand = reply.contains(Regex("(?i)(WHATSAPP:|CALL:|GMAIL:|GOOGLE:|YOUTUBE:|OPEN_APP:|ALARM:|SPOTIFY:|YOUTUBE_MUSIC:)"))
-        if (hasCommand) {
-            val broadcast = Intent("com.rio.gamaentity.HANDLE_COMMAND").apply {
-                putExtra("notif_command", reply)
-                setPackage(packageName)
+
+            // Alarm — works from background with SKIP_UI
+            Regex("(?i)ALARM:(\d{1,2}):(\d{2})(?::(.+))?").find(t)?.let {
+                val hour = it.groupValues[1].toIntOrNull() ?: return
+                val minute = it.groupValues[2].toIntOrNull() ?: return
+                try {
+                    startActivity(Intent(android.provider.AlarmClock.ACTION_SET_ALARM).apply {
+                        putExtra(android.provider.AlarmClock.EXTRA_HOUR, hour)
+                        putExtra(android.provider.AlarmClock.EXTRA_MINUTES, minute)
+                        putExtra(android.provider.AlarmClock.EXTRA_MESSAGE, it.groupValues[3].ifEmpty { "GAMA Alarm" })
+                        putExtra(android.provider.AlarmClock.EXTRA_SKIP_UI, true)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    })
+                } catch (e: Exception) {}
+                return
             }
-            sendBroadcast(broadcast)
         }
-        return
+
+        // Everything else — launch GAMA Entity to handle it
+        val hasCommand = reply.contains(Regex("(?i)(WHATSAPP:|CALL:|GMAIL:|GOOGLE:|YOUTUBE:|OPEN_APP:|SPOTIFY:|YOUTUBE_MUSIC:|PLEASE_CALL:)"))
+        if (hasCommand) {
+            val intent = Intent(this, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                putExtra("notif_command", reply)
+            }
+            startActivity(intent)
+        }
     }
 
     private fun handleActionDirect(reply: String) {
