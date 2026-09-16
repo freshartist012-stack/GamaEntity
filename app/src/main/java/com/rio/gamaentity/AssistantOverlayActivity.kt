@@ -52,6 +52,7 @@ class AssistantOverlayActivity : Activity() {
         )
         window.setGravity(Gravity.BOTTOM)
         window.setBackgroundDrawableResource(android.R.color.transparent)
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL)
         setFinishOnTouchOutside(true)
 
         // Build UI
@@ -239,9 +240,17 @@ CALL:NUMBER, GOOGLE:query, YOUTUBE:query, FLASHLIGHT:ON/OFF, OPEN_APP:name, ALAR
                                 TextToSpeech.QUEUE_FLUSH, null, "done")
                             tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                                 override fun onStart(u: String?) {}
-                                override fun onDone(u: String?) { handler.postDelayed({ startListening() }, 300) }
-                                override fun onError(u: String?) {}
+                                override fun onDone(u: String?) {
+                                    handler.postDelayed({
+                                        val hasCommand = reply.contains(Regex("(?i)(CALL:|GOOGLE:|YOUTUBE:|OPEN_APP:|ALARM:|FLASHLIGHT:)"))
+                                        if (!hasCommand) startListening()
+                                    }, 300)
+                                }
+                                override fun onError(u: String?) { handler.postDelayed({ startListening() }, 300) }
                             })
+                        } else {
+                            val hasCommand = reply.contains(Regex("(?i)(CALL:|GOOGLE:|YOUTUBE:|OPEN_APP:|ALARM:|FLASHLIGHT:)"))
+                            if (!hasCommand) handler.postDelayed({ startListening() }, 800)
                         }
                     } catch (e: Exception) {
                         responseText.text = "Error. Try again."
@@ -252,6 +261,17 @@ CALL:NUMBER, GOOGLE:query, YOUTUBE:query, FLASHLIGHT:ON/OFF, OPEN_APP:name, ALAR
     }
 
     private fun handleAction(reply: String) {
+        val needsFullApp = reply.contains(Regex("(?i)(CALL:|GOOGLE:|YOUTUBE:|OPEN_APP:|ALARM:|WHATSAPP:|PLEASE_CALL:)"))
+        if (needsFullApp) {
+            val intent = Intent(this, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                putExtra("notif_command", reply)
+            }
+            startActivity(intent)
+            finish()
+            return
+        }
+
         for (line in reply.split("\n")) {
             val t = line.trim()
 
