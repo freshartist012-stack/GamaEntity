@@ -261,9 +261,15 @@ class VoiceNotificationService : Service() {
                 return
             }
         }
-        // For all other commands launch MainActivity with the command
+        // For all other commands send broadcast to MainActivity
         val hasCommand = reply.contains(Regex("(?i)(WHATSAPP:|CALL:|GMAIL:|GOOGLE:|YOUTUBE:|OPEN_APP:|ALARM:|SPOTIFY:|YOUTUBE_MUSIC:)"))
-        if (hasCommand) startActivity(intent)
+        if (hasCommand) {
+            val broadcast = Intent("com.rio.gamaentity.HANDLE_COMMAND").apply {
+                putExtra("notif_command", reply)
+                setPackage(packageName)
+            }
+            sendBroadcast(broadcast)
+        }
         return
     }
 

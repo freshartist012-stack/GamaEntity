@@ -64,6 +64,12 @@ class MainActivity : AppCompatActivity() {
     private var modelType = "groq"
     private var groqKey = ""
     private var systemPromptAdded = false
+    private val commandReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
+            val command = intent?.getStringExtra("notif_command") ?: return
+            handleAction(command)
+        }
+    }
     private var voiceModeActive = false
     private lateinit var waveformView: WaveformView
     private var audioRecord: android.media.AudioRecord? = null
@@ -1323,7 +1329,9 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         val prefs = getSharedPreferences("gama_prefs", MODE_PRIVATE)
         if (prefs.getBoolean("data_consent_given", false)) {
             copyDictionaryIfNeeded()
-            checkAndRequestPermissions()
+            val filter = android.content.IntentFilter("com.rio.gamaentity.HANDLE_COMMAND")
+        registerReceiver(commandReceiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
+        checkAndRequestPermissions()
             return
         }
         AlertDialog.Builder(this)
@@ -1333,7 +1341,9 @@ When writing emails write only the email content. Never add notes, disclaimers, 
             .setPositiveButton("Accept") { _, _ ->
                 prefs.edit().putBoolean("data_consent_given", true).apply()
                 copyDictionaryIfNeeded()
-                checkAndRequestPermissions()
+                val filter = android.content.IntentFilter("com.rio.gamaentity.HANDLE_COMMAND")
+        registerReceiver(commandReceiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
+        checkAndRequestPermissions()
             }
             .setNegativeButton("Decline") { _, _ ->
                 finish()
@@ -1467,6 +1477,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
 
     override fun onDestroy() {
         super.onDestroy()
+        try { unregisterReceiver(commandReceiver) } catch (e: Exception) {}
         tts.stop()
         tts.shutdown()
         speechRecognizer?.destroy()
