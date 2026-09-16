@@ -64,12 +64,6 @@ class MainActivity : AppCompatActivity() {
     private var modelType = "groq"
     private var groqKey = ""
     private var systemPromptAdded = false
-    private val commandReceiver = object : android.content.BroadcastReceiver() {
-        override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
-            val command = intent?.getStringExtra("notif_command") ?: return
-            handleAction(command)
-        }
-    }
     private var voiceModeActive = false
     private lateinit var waveformView: WaveformView
     private var audioRecord: android.media.AudioRecord? = null
@@ -246,30 +240,6 @@ class MainActivity : AppCompatActivity() {
             finish()
         }
         drawerContent.addView(switchBtn)
-
-        val notifBtn = Button(this)
-        notifBtn.text = if (VoiceNotificationService.isRunning) "Stop Notification Mic" else "Start Notification Mic"
-        notifBtn.setBackgroundColor(if (VoiceNotificationService.isRunning) 0xFFCC0000.toInt() else 0xFF2E7D32.toInt())
-        notifBtn.setTextColor(0xFFFFFFFF.toInt())
-        notifBtn.layoutParams = btnParams
-        notifBtn.setOnClickListener {
-            if (VoiceNotificationService.isRunning) {
-                startService(Intent(this, VoiceNotificationService::class.java).apply { action = VoiceNotificationService.ACTION_STOP_SERVICE })
-                notifBtn.text = "Start Notification Mic"
-                notifBtn.setBackgroundColor(0xFF2E7D32.toInt())
-            } else {
-                if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-                    startForegroundService(Intent(this, VoiceNotificationService::class.java).apply { action = VoiceNotificationService.ACTION_START_LISTENING })
-                    notifBtn.text = "Stop Notification Mic"
-                    notifBtn.setBackgroundColor(0xFFCC0000.toInt())
-                } else {
-                    ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), 101)
-                    Toast.makeText(this, "Please grant microphone permission first", Toast.LENGTH_SHORT).show()
-                }
-            }
-            drawerLayout.closeDrawers()
-        }
-        drawerContent.addView(notifBtn)
 
 
         val keysBtn = Button(this)
@@ -1329,9 +1299,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         val prefs = getSharedPreferences("gama_prefs", MODE_PRIVATE)
         if (prefs.getBoolean("data_consent_given", false)) {
             copyDictionaryIfNeeded()
-            val filter = android.content.IntentFilter("com.rio.gamaentity.HANDLE_COMMAND")
-        registerReceiver(commandReceiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
-        checkAndRequestPermissions()
+            checkAndRequestPermissions()
             return
         }
         AlertDialog.Builder(this)
@@ -1341,9 +1309,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
             .setPositiveButton("Accept") { _, _ ->
                 prefs.edit().putBoolean("data_consent_given", true).apply()
                 copyDictionaryIfNeeded()
-                val filter = android.content.IntentFilter("com.rio.gamaentity.HANDLE_COMMAND")
-        registerReceiver(commandReceiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
-        checkAndRequestPermissions()
+                checkAndRequestPermissions()
             }
             .setNegativeButton("Decline") { _, _ ->
                 finish()
@@ -1477,7 +1443,6 @@ When writing emails write only the email content. Never add notes, disclaimers, 
 
     override fun onDestroy() {
         super.onDestroy()
-        try { unregisterReceiver(commandReceiver) } catch (e: Exception) {}
         tts.stop()
         tts.shutdown()
         speechRecognizer?.destroy()

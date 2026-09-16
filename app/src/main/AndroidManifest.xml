@@ -7,9 +7,6 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="true"
@@ -42,11 +39,6 @@
         <activity android:name=".GroqSetupActivity" android:exported="false"/>
         <activity android:name=".AboutActivity" android:exported="false"/>
         <activity android:name=".KeysActivity" android:exported="false"/>
-
-        <service
-            android:name=".VoiceNotificationService"
-            android:foregroundServiceType="microphone"
-            android:exported="false"/>
 
     </application>
 
