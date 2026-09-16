@@ -245,6 +245,29 @@ class VoiceNotificationService : Service() {
     }
 
     private fun handleAction(reply: String) {
+        // Send to MainActivity to handle — avoids background activity restriction
+        val intent = Intent(this, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            putExtra("notif_command", reply)
+        }
+        // Only flashlight handled here directly — everything else goes to MainActivity
+        for (line in reply.split("\n")) {
+            val t = line.trim()
+            Regex("(?i)FLASHLIGHT:(ON|OFF)").find(t)?.let {
+                try {
+                    val cm = getSystemService(Context.CAMERA_SERVICE) as android.hardware.camera2.CameraManager
+                    cm.setTorchMode(cm.cameraIdList[0], it.groupValues[1].uppercase() == "ON")
+                } catch (e: Exception) {}
+                return
+            }
+        }
+        // For all other commands launch MainActivity with the command
+        val hasCommand = reply.contains(Regex("(?i)(WHATSAPP:|CALL:|GMAIL:|GOOGLE:|YOUTUBE:|OPEN_APP:|ALARM:|SPOTIFY:|YOUTUBE_MUSIC:)"))
+        if (hasCommand) startActivity(intent)
+        return
+    }
+
+    private fun handleActionDirect(reply: String) {
         for (line in reply.split("\n")) {
             val t = line.trim()
 
