@@ -139,10 +139,6 @@ class MainActivity : AppCompatActivity() {
         showDataDisclosureIfNeeded()
         startNewChat()
         if (intent?.action == "android.intent.action.ASSIST") {
-            window.setLayout(
-                (resources.displayMetrics.widthPixels * 0.95).toInt(),
-                (resources.displayMetrics.heightPixels * 0.5).toInt()
-            )
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                 voiceModeActive = true
                 waveformView.visibility = android.view.View.VISIBLE
