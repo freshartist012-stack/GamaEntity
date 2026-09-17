@@ -138,11 +138,7 @@ class MainActivity : AppCompatActivity() {
 
         showDataDisclosureIfNeeded()
         startNewChat()
-        if (intent?.action == "android.intent.action.ASSIST") {
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                startVoiceInput()
-            }, 800)
-        }
+        // ASSIST handled by AssistantOverlayActivity
     }
 
     private fun checkAndRequestPermissions() {

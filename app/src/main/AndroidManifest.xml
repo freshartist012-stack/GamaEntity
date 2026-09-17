@@ -28,8 +28,10 @@
             </intent-filter>
         </activity>
 
+        <activity android:name=".MainActivity" android:exported="false"/>
+
         <activity
-            android:name=".MainActivity"
+            android:name=".AssistantOverlayActivity"
             android:exported="true"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
@@ -37,7 +39,6 @@
                 <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
         </activity>
-
         <activity android:name=".GroqSetupActivity" android:exported="false"/>
         <activity android:name=".AboutActivity" android:exported="false"/>
         <activity android:name=".KeysActivity" android:exported="false"/>
