@@ -140,10 +140,8 @@ class MainActivity : AppCompatActivity() {
         startNewChat()
         if (intent?.action == "android.intent.action.ASSIST") {
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                voiceModeActive = true
-                waveformView.visibility = android.view.View.VISIBLE
-                listenWithSpeechRecognizer()
-            }, 500)
+                startVoiceInput()
+            }, 800)
         }
     }
 
