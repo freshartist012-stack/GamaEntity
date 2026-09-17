@@ -28,12 +28,8 @@
             </intent-filter>
         </activity>
 
-        <activity android:name=".MainActivity" android:exported="true"/>
-
-        <activity android:name=".GroqSetupActivity" android:exported="false"/>
-        <activity android:name=".AboutActivity" android:exported="false"/>
         <activity
-            android:name=".AssistantOverlayActivity"
+            android:name=".MainActivity"
             android:exported="true"
             android:theme="@style/Theme.AppCompat.Dialog"
             android:windowSoftInputMode="adjustResize">
@@ -42,6 +38,9 @@
                 <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
         </activity>
+
+        <activity android:name=".GroqSetupActivity" android:exported="false"/>
+        <activity android:name=".AboutActivity" android:exported="false"/>
         <activity android:name=".KeysActivity" android:exported="false"/>
 
     </application>
