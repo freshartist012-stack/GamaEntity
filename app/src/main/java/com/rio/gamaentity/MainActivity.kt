@@ -240,6 +240,21 @@ class MainActivity : AppCompatActivity() {
         drawerContent.addView(switchBtn)
 
 
+        val overlayBtn = Button(this)
+        overlayBtn.text = if (android.provider.Settings.canDrawOverlays(this)) "✓ Overlay Permission Granted" else "Enable Overlay Permission"
+        overlayBtn.setBackgroundColor(if (android.provider.Settings.canDrawOverlays(this)) 0xFF2E7D32.toInt() else 0xFF880000.toInt())
+        overlayBtn.setTextColor(0xFFFFFFFF.toInt())
+        overlayBtn.layoutParams = btnParams
+        overlayBtn.setOnClickListener {
+            if (!android.provider.Settings.canDrawOverlays(this)) {
+                startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+                    data = android.net.Uri.parse("package:$packageName")
+                })
+            }
+            drawerLayout.closeDrawers()
+        }
+        drawerContent.addView(overlayBtn)
+
         val keysBtn = Button(this)
         keysBtn.text = "API Keys"
         keysBtn.setBackgroundColor(0xFF2E5090.toInt())
@@ -1438,6 +1453,16 @@ When writing emails write only the email content. Never add notes, disclaimers, 
 
 
 
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        val command = intent?.getStringExtra("notif_command")
+        if (!command.isNullOrEmpty()) {
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                handleAction(command)
+            }, 500)
+        }
+    }
 
     override fun onDestroy() {
         super.onDestroy()

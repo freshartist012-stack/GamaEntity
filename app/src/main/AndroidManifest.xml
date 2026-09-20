@@ -28,17 +28,8 @@
             </intent-filter>
         </activity>
 
-        <activity android:name=".MainActivity" android:exported="false"/>
-
-        <activity
-            android:name=".AssistantOverlayActivity"
-            android:exported="true"
-            android:windowSoftInputMode="adjustResize">
-            <intent-filter>
-                <action android:name="android.intent.action.ASSIST"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-            </intent-filter>
-        </activity>
+        <activity android:name=".MainActivity" android:exported="true"/>
+        <service android:name=".OverlayService" android:exported="false"/>
         <activity android:name=".GroqSetupActivity" android:exported="false"/>
         <activity android:name=".AboutActivity" android:exported="false"/>
         <activity android:name=".KeysActivity" android:exported="false"/>
