@@ -362,7 +362,7 @@ class OverlayService : Service() {
     }
 
     private fun lookupContact(nameOrNumber: String): String {
-        val digits = nameOrNumber.replace("[^\d]".toRegex(), "")
+        val digits = nameOrNumber.replace("[^\\d]".toRegex(), "")
         if (digits.length >= 7) return formatNumber(nameOrNumber)
         try {
             contentResolver.query(
@@ -382,7 +382,7 @@ class OverlayService : Service() {
     }
 
     private fun formatNumber(raw: String): String {
-        val d = raw.replace("[^\d]".toRegex(), "")
+        val d = raw.replace("[^\\d]".toRegex(), "")
         return when {
             d.startsWith("27") && d.length >= 11 -> d
             d.startsWith("0") && d.length == 10 -> "27${d.substring(1)}"
