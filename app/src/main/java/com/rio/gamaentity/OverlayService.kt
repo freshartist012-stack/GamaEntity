@@ -323,7 +323,14 @@ class OverlayService : Service() {
             }
 
             Regex("(?i)YOUTUBE:(.+)").find(t)?.let {
-                startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.youtube.com/results?search_query=${android.net.Uri.encode(it.groupValues[1].trim())}")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
+                val uri = android.net.Uri.parse("https://www.youtube.com/results?search_query=${android.net.Uri.encode(it.groupValues[1].trim())}")
+                val intent = Intent(Intent.ACTION_VIEW, uri).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    setPackage("com.google.android.youtube")
+                }
+                try { startActivity(intent) } catch (e: Exception) {
+                    startActivity(Intent(Intent.ACTION_VIEW, uri).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
+                }
                 return true
             }
 
@@ -336,18 +343,36 @@ class OverlayService : Service() {
             }
 
             Regex("(?i)WHATSAPP:([^:]+):(.+)").find(t)?.let {
-                val number = lookupContact(it.groupValues[1].trim())
-                val message = it.groupValues[2].trim()
-                val uri = android.net.Uri.parse("https://api.whatsapp.com/send?phone=$number&text=${android.net.Uri.encode(message)}")
-                try { startActivity(Intent(Intent.ACTION_VIEW, uri).apply { setPackage("com.whatsapp"); addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }) }
-                catch (e: Exception) { startActivity(Intent(Intent.ACTION_VIEW, uri).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }) }
+                startActivity(Intent(this, AssistantOverlayActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    putExtra("execute_command", reply)
+                })
+                return true
+            }
+
+            Regex("(?i)PLEASE_CALL:(.+)").find(t)?.let {
+                startActivity(Intent(this, AssistantOverlayActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    putExtra("execute_command", reply)
+                })
+                return true
+            }
+
+            Regex("(?i)GMAIL:(.+)").find(t)?.let {
+                startActivity(Intent(this, AssistantOverlayActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    putExtra("execute_command", reply)
+                })
                 return true
             }
 
             Regex("(?i)SPOTIFY:(.+)").find(t)?.let {
                 val query = it.groupValues[1].trim()
-                try { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("spotify:search:${android.net.Uri.encode(query)}")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }) }
-                catch (e: Exception) { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://open.spotify.com/search/${android.net.Uri.encode(query)}")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }) }
+                val spotifyUri = android.net.Uri.parse("spotify:search:$query")
+                val intent = Intent(Intent.ACTION_VIEW, spotifyUri).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+                try { startActivity(intent) } catch (e: Exception) {
+                    startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://open.spotify.com/search/${android.net.Uri.encode(query)}")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
+                }
                 return true
             }
 
