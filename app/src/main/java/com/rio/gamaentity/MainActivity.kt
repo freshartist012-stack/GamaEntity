@@ -1454,15 +1454,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
 
 
 
-    override fun onNewIntent(intent: Intent?) {
-        super.onNewIntent(intent)
-        val command = intent?.getStringExtra("notif_command")
-        if (!command.isNullOrEmpty()) {
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                handleAction(command)
-            }, 500)
-        }
-    }
+
 
     override fun onDestroy() {
         super.onDestroy()
