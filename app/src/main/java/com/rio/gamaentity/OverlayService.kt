@@ -159,22 +159,11 @@ class OverlayService : Service() {
             (resources.displayMetrics.widthPixels * 0.92).toInt(),
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
             y = 120
-        }
-
-        // Allow keyboard input
-        root.setOnTouchListener { _, _ ->
-            val p = windowManager?.defaultDisplay?.let {
-                (params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv())
-            }
-            params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
-            windowManager?.updateViewLayout(root, params)
-            false
         }
 
         overlayView = root
@@ -322,17 +311,84 @@ class OverlayService : Service() {
                 return true
             }
 
-            if (t.contains(Regex("(?i)(CALL:|GOOGLE:|YOUTUBE:|OPEN_APP:|WHATSAPP:|PLEASE_CALL:)"))) {
-                hideOverlay()
-                val intent = Intent(this, MainActivity::class.java).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                    putExtra("notif_command", reply)
-                }
-                startActivity(intent)
+            Regex("(?i)CALL:([^\n]+)").find(t)?.let {
+                val number = lookupContact(it.groupValues[1].trim())
+                try { startActivity(Intent(Intent.ACTION_CALL, android.net.Uri.parse("tel:$number")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }) } catch (e: Exception) {}
+                return true
+            }
+
+            Regex("(?i)GOOGLE:(.+)").find(t)?.let {
+                startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.google.com/search?q=${android.net.Uri.encode(it.groupValues[1].trim())}")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
+                return true
+            }
+
+            Regex("(?i)YOUTUBE:(.+)").find(t)?.let {
+                startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.youtube.com/results?search_query=${android.net.Uri.encode(it.groupValues[1].trim())}")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
+                return true
+            }
+
+            Regex("(?i)OPEN_APP:(.+)").find(t)?.let {
+                val appName = it.groupValues[1].trim().lowercase()
+                val found = packageManager.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
+                    .firstOrNull { ri -> ri.loadLabel(packageManager).toString().lowercase().contains(appName) }
+                found?.let { ri -> packageManager.getLaunchIntentForPackage(ri.activityInfo.packageName)?.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }?.let { startActivity(it) } }
+                return true
+            }
+
+            Regex("(?i)WHATSAPP:([^:]+):(.+)").find(t)?.let {
+                val number = lookupContact(it.groupValues[1].trim())
+                val message = it.groupValues[2].trim()
+                val uri = android.net.Uri.parse("https://api.whatsapp.com/send?phone=$number&text=${android.net.Uri.encode(message)}")
+                try { startActivity(Intent(Intent.ACTION_VIEW, uri).apply { setPackage("com.whatsapp"); addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }) }
+                catch (e: Exception) { startActivity(Intent(Intent.ACTION_VIEW, uri).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }) }
+                return true
+            }
+
+            Regex("(?i)SPOTIFY:(.+)").find(t)?.let {
+                val query = it.groupValues[1].trim()
+                try { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("spotify:search:${android.net.Uri.encode(query)}")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }) }
+                catch (e: Exception) { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://open.spotify.com/search/${android.net.Uri.encode(query)}")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }) }
+                return true
+            }
+
+            Regex("(?i)YOUTUBE_MUSIC:(.+)").find(t)?.let {
+                val query = it.groupValues[1].trim()
+                try { startActivity(Intent(Intent.ACTION_SEARCH).apply { setPackage("com.google.android.apps.youtube.music"); putExtra("query", query); addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }) }
+                catch (e: Exception) { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://music.youtube.com/search?q=${android.net.Uri.encode(query)}")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }) }
                 return true
             }
         }
         return false
+    }
+
+    private fun lookupContact(nameOrNumber: String): String {
+        val digits = nameOrNumber.replace("[^\d]".toRegex(), "")
+        if (digits.length >= 7) return formatNumber(nameOrNumber)
+        try {
+            contentResolver.query(
+                android.provider.ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                arrayOf(android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                    android.provider.ContactsContract.CommonDataKinds.Phone.NUMBER),
+                null, null, null
+            )?.use {
+                while (it.moveToNext()) {
+                    val name = it.getString(0) ?: continue
+                    val number = it.getString(1) ?: continue
+                    if (name.lowercase().contains(nameOrNumber.lowercase())) return formatNumber(number)
+                }
+            }
+        } catch (e: Exception) {}
+        return nameOrNumber
+    }
+
+    private fun formatNumber(raw: String): String {
+        val d = raw.replace("[^\d]".toRegex(), "")
+        return when {
+            d.startsWith("27") && d.length >= 11 -> d
+            d.startsWith("0") && d.length == 10 -> "27${d.substring(1)}"
+            d.length == 9 -> "27$d"
+            else -> d
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
