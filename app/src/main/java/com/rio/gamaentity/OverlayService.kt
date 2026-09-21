@@ -237,9 +237,11 @@ class OverlayService : Service() {
 
     private fun startListening() {
         if (!isActive || !voiceEnabled) return
-        handler.post {
+        handler.postDelayed({
+            if (!isActive || !voiceEnabled) return@postDelayed
             responseText.text = "Listening..."
-            speechRecognizer?.destroy()
+            try { speechRecognizer?.destroy() } catch (e: Exception) {}
+            speechRecognizer = null
             speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
             speechRecognizer?.setRecognitionListener(object : RecognitionListener {
                 override fun onResults(results: Bundle?) {
@@ -256,7 +258,11 @@ class OverlayService : Service() {
                 }
                 override fun onReadyForSpeech(p: Bundle?) { responseText.text = "Speak..." }
                 override fun onBeginningOfSpeech() {}
-                override fun onRmsChanged(rmsdB: Float) { handler.post { waveformView.updateAmplitude(rmsdB * 200) } }
+                override fun onRmsChanged(rmsdB: Float) { 
+                    handler.post { 
+                        if (::waveformView.isInitialized) waveformView.updateAmplitude((rmsdB + 10) * 300) 
+                    } 
+                }
                 override fun onBufferReceived(b: ByteArray?) {}
                 override fun onEndOfSpeech() { handler.post { waveformView.updateAmplitude(0f) } }
                 override fun onPartialResults(p: Bundle?) {
@@ -270,7 +276,7 @@ class OverlayService : Service() {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             })
-        }
+        }, 300)
     }
 
     private fun sendToGAMA(transcript: String) {
@@ -282,9 +288,24 @@ class OverlayService : Service() {
         handler.post { responseText.text = "Thinking..." }
 
         if (!systemPromptAdded) {
+            val contacts = getContactsList()
+            val contactsSection = if (contacts.isNotEmpty()) "CONTACTS:\n$contacts\n" else ""
             messages.put(JSONObject().apply {
                 put("role", "system")
-                put("content", "You are GAMA, a concise AI voice assistant. User: $userName. Be very brief. Only output commands when explicitly asked: CALL:NUMBER, GOOGLE:query, YOUTUBE:query, FLASHLIGHT:ON/OFF, OPEN_APP:name, ALARM:HH:MM:Label, WHATSAPP:NUMBER:MESSAGE")
+                put("content", """You are GAMA, a concise AI voice assistant. User: $userName. Be very brief.
+$contactsSection
+Only output commands when explicitly asked. Use exact numbers from contacts:
+CALL:NUMBER (regular call)
+PLEASE_CALL:CONTACT_NAME:NETWORK (please call me USSD — use when user says please call, call me back, callback)
+WHATSAPP:NUMBER:MESSAGE
+GOOGLE:search terms
+YOUTUBE:search terms (YouTube video search only)
+YOUTUBE_MUSIC:song or artist (YouTube Music — use when user mentions music, song, play)
+SPOTIFY:song or artist (use when user mentions Spotify)
+FLASHLIGHT:ON or OFF
+OPEN_APP:app name
+ALARM:HH:MM:Label
+Never use contact names in commands, always use their number.""")
             })
             systemPromptAdded = true
         }
@@ -457,6 +478,26 @@ class OverlayService : Service() {
 
     private fun speak(text: String) {
         if (ttsReady) tts?.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, null)
+    }
+
+    private fun getContactsList(): String {
+        val sb = StringBuilder()
+        try {
+            contentResolver.query(
+                android.provider.ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                arrayOf(android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                    android.provider.ContactsContract.CommonDataKinds.Phone.NUMBER),
+                null, null,
+                android.provider.ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC"
+            )?.use {
+                while (it.moveToNext()) {
+                    val name = it.getString(0) ?: continue
+                    val number = it.getString(1) ?: continue
+                    sb.append("$name: $number\n")
+                }
+            }
+        } catch (e: Exception) {}
+        return sb.toString().take(3000)
     }
 
     private fun lookupContact(nameOrNumber: String): String {
