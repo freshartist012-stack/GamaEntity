@@ -197,7 +197,8 @@ class OverlayService : Service() {
             (resources.displayMetrics.widthPixels * 0.92).toInt(),
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+            WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
@@ -239,10 +240,14 @@ class OverlayService : Service() {
         if (!isActive || !voiceEnabled) return
         handler.postDelayed({
             if (!isActive || !voiceEnabled) return@postDelayed
-            responseText.text = "Listening..."
-            try { speechRecognizer?.destroy() } catch (e: Exception) {}
-            speechRecognizer = null
-            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
+            handler.post {
+                try { speechRecognizer?.cancel(); speechRecognizer?.destroy() } catch (e: Exception) {}
+                speechRecognizer = null
+            }
+            handler.postDelayed({
+                if (!isActive || !voiceEnabled) return@postDelayed
+                responseText.text = "Listening..."
+                speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
             speechRecognizer?.setRecognitionListener(object : RecognitionListener {
                 override fun onResults(results: Bundle?) {
                     val transcript = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
@@ -276,6 +281,7 @@ class OverlayService : Service() {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             })
+            }, 200)
         }, 300)
     }
 

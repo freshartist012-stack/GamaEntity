@@ -56,6 +56,13 @@ class AssistantOverlayActivity : Activity() {
                 return
             }
 
+            Regex("(?i)CALL:([^\n]+)").find(t)?.let {
+                val raw = it.groupValues[1].trim()
+                val number = lookupContact(raw)
+                showCallConfirmation(raw, number)
+                return
+            }
+
             Regex("(?i)PLEASE_CALL:([^:]+)(?::(.+))?").find(t)?.let {
                 val contactName = it.groupValues[1].trim()
                 val network = it.groupValues[2].trim()
@@ -79,22 +86,39 @@ class AssistantOverlayActivity : Activity() {
     }
 
     private fun showWhatsAppConfirmation(contactName: String, number: String, message: String) {
+        val contacts = getContactsList()
+        val names = contacts.map { it.first }.toTypedArray()
+        var selectedNumber = number
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(48, 16, 48, 0)
         }
 
-        val nameView = TextView(this).apply {
-            text = "To: $contactName"
-            textSize = 15f
-        }
+        val nameView = TextView(this).apply { text = "To: $contactName"; textSize = 15f }
         layout.addView(nameView)
+        layout.addView(TextView(this).apply { text = "Change contact:"; textSize = 12f; setPadding(0,8,0,4) })
 
-        val msgInput = EditText(this).apply {
-            setText(message)
-            textSize = 14f
+        val spinner = Spinner(this)
+        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, names)
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinner.adapter = adapter
+        val defaultIdx = contacts.indexOfFirst {
+            val cNum = it.second.replace("[^\d]".toRegex(), "")
+            val rNum = number.replace("[^\d]".toRegex(), "")
+            cNum.takeLast(7) == rNum.takeLast(7) || it.first.lowercase().contains(contactName.lowercase())
         }
-        layout.addView(TextView(this).apply { text = "Message:"; textSize = 12f })
+        if (defaultIdx >= 0) spinner.setSelection(defaultIdx)
+        spinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(p: android.widget.AdapterView<*>?, v: android.view.View?, pos: Int, id: Long) {
+                selectedNumber = formatNumber(contacts[pos].second)
+                nameView.text = "To: ${contacts[pos].first}"
+            }
+            override fun onNothingSelected(p: android.widget.AdapterView<*>?) {}
+        }
+        layout.addView(spinner)
+
+        val msgInput = EditText(this).apply { setText(message); textSize = 14f }
+        layout.addView(TextView(this).apply { text = "Message:"; textSize = 12f; setPadding(0,12,0,4) })
         layout.addView(msgInput)
 
         AlertDialog.Builder(this)
@@ -103,7 +127,7 @@ class AssistantOverlayActivity : Activity() {
             .setCancelable(false)
             .setPositiveButton("Send") { _, _ ->
                 val finalMessage = msgInput.text.toString().trim()
-                val uri = Uri.parse("https://api.whatsapp.com/send?phone=$number&text=${Uri.encode(finalMessage)}")
+                val uri = Uri.parse("https://api.whatsapp.com/send?phone=$selectedNumber&text=${Uri.encode(finalMessage)}")
                 try { startActivity(Intent(Intent.ACTION_VIEW, uri).apply { setPackage("com.whatsapp") }) }
                 catch (e: Exception) { startActivity(Intent(Intent.ACTION_VIEW, uri)) }
                 finish()
@@ -176,6 +200,69 @@ class AssistantOverlayActivity : Activity() {
             .setPositiveButton("Send") { _, _ ->
                 startActivity(Intent(Intent.ACTION_VIEW,
                     Uri.parse("mailto:${toInput.text}?subject=${Uri.encode(subjectInput.text.toString())}&body=${Uri.encode(bodyInput.text.toString())}")))
+                finish()
+            }
+            .setNegativeButton("Cancel") { _, _ -> finish() }
+            .show()
+    }
+
+    private fun getContactsList(): List<Pair<String, String>> {
+        val contacts = mutableListOf<Pair<String, String>>()
+        try {
+            contentResolver.query(
+                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                arrayOf(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                    ContactsContract.CommonDataKinds.Phone.NUMBER),
+                null, null,
+                ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC"
+            )?.use {
+                while (it.moveToNext()) {
+                    val name = it.getString(0) ?: continue
+                    val number = it.getString(1) ?: continue
+                    contacts.add(Pair(name, number))
+                }
+            }
+        } catch (e: Exception) {}
+        return contacts
+    }
+
+    private fun showCallConfirmation(raw: String, number: String) {
+        val contacts = getContactsList()
+        val numbers = contacts.map { "${it.first}: ${it.second}" }.toTypedArray()
+        var selectedNumber = number
+
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(48, 16, 48, 0)
+        }
+        layout.addView(TextView(this).apply { text = "Calling: $raw"; textSize = 15f })
+        layout.addView(TextView(this).apply { text = "Change number:"; textSize = 12f; setPadding(0,8,0,4) })
+
+        val spinner = Spinner(this)
+        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, numbers)
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        spinner.adapter = adapter
+        val defaultIdx = contacts.indexOfFirst {
+            val cNum = it.second.replace("[^\d]".toRegex(), "")
+            val rNum = number.replace("[^\d]".toRegex(), "")
+            cNum.takeLast(7) == rNum.takeLast(7) || it.first.lowercase().contains(raw.lowercase())
+        }
+        if (defaultIdx >= 0) spinner.setSelection(defaultIdx)
+        spinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(p: android.widget.AdapterView<*>?, v: android.view.View?, pos: Int, id: Long) {
+                selectedNumber = formatNumber(contacts[pos].second)
+            }
+            override fun onNothingSelected(p: android.widget.AdapterView<*>?) {}
+        }
+        layout.addView(spinner)
+
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Make Call?")
+            .setView(layout)
+            .setCancelable(false)
+            .setPositiveButton("Call") { _, _ ->
+                try { startActivity(Intent(Intent.ACTION_CALL, Uri.parse("tel:$selectedNumber"))) }
+                catch (e: Exception) { startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$selectedNumber"))) }
                 finish()
             }
             .setNegativeButton("Cancel") { _, _ -> finish() }
