@@ -56,17 +56,17 @@ class AssistantOverlayActivity : Activity() {
                 return
             }
 
-            Regex("(?i)CALL:([^\n]+)").find(t)?.let {
-                val raw = it.groupValues[1].trim()
-                val number = lookupContact(raw)
-                showCallConfirmation(raw, number)
-                return
-            }
-
             Regex("(?i)PLEASE_CALL:([^:]+)(?::(.+))?").find(t)?.let {
                 val contactName = it.groupValues[1].trim()
                 val network = it.groupValues[2].trim()
                 showPleaseCallConfirmation(contactName, network)
+                return
+            }
+
+            Regex("(?i)CALL:([^\n]+)").find(t)?.let {
+                val raw = it.groupValues[1].trim()
+                val number = lookupContact(raw)
+                showCallConfirmation(raw, number)
                 return
             }
 
