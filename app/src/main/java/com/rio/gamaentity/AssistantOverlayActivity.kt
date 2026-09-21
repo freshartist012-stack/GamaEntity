@@ -103,8 +103,8 @@ class AssistantOverlayActivity : Activity() {
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         spinner.adapter = adapter
         val defaultIdx = contacts.indexOfFirst {
-            val cNum = it.second.replace("[^\d]".toRegex(), "")
-            val rNum = number.replace("[^\d]".toRegex(), "")
+            val cNum = it.second.replace("[^\\d]".toRegex(), "")
+            val rNum = number.replace("[^\\d]".toRegex(), "")
             cNum.takeLast(7) == rNum.takeLast(7) || it.first.lowercase().contains(contactName.lowercase())
         }
         if (defaultIdx >= 0) spinner.setSelection(defaultIdx)
@@ -243,8 +243,8 @@ class AssistantOverlayActivity : Activity() {
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         spinner.adapter = adapter
         val defaultIdx = contacts.indexOfFirst {
-            val cNum = it.second.replace("[^\d]".toRegex(), "")
-            val rNum = number.replace("[^\d]".toRegex(), "")
+            val cNum = it.second.replace("[^\\d]".toRegex(), "")
+            val rNum = number.replace("[^\\d]".toRegex(), "")
             cNum.takeLast(7) == rNum.takeLast(7) || it.first.lowercase().contains(raw.lowercase())
         }
         if (defaultIdx >= 0) spinner.setSelection(defaultIdx)
