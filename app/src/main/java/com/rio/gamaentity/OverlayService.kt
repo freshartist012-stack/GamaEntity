@@ -1,6 +1,7 @@
 package com.rio.gamaentity
 
 import android.app.Service
+import android.net.Uri
 import android.content.Intent
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
@@ -65,38 +66,98 @@ class OverlayService : Service() {
         return START_STICKY
     }
 
+    private var voiceEnabled = true
+    private lateinit var voiceBtn: TextView
+    private lateinit var overlayParams: WindowManager.LayoutParams
+
     private fun showOverlay() {
         if (overlayView != null) return
         if (!Settings.canDrawOverlays(this)) return
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(40, 40, 40, 40)
-            val bg = GradientDrawable().apply {
+            setPadding(40, 32, 40, 32)
+            val bg = android.graphics.drawable.GradientDrawable().apply {
                 setColor(0xF01A1A2E.toInt())
                 cornerRadius = 32f
             }
             background = bg
         }
 
+        // Drag handle row
+        val dragRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 0, 0, 8)
+        }
+
+        val dragHandle = TextView(this).apply {
+            text = "⠿ GAMA"
+            textSize = 13f
+            setTextColor(0xFF888888.toInt())
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+        dragRow.addView(dragHandle)
+
+        voiceBtn = TextView(this).apply {
+            text = "🎙 On"
+            textSize = 12f
+            setTextColor(0xFF4CAF50.toInt())
+            setPadding(0, 0, 16, 0)
+            setOnClickListener {
+                voiceEnabled = !voiceEnabled
+                if (voiceEnabled) {
+                    text = "🎙 On"
+                    setTextColor(0xFF4CAF50.toInt())
+                    startListening()
+                } else {
+                    text = "🎙 Off"
+                    setTextColor(0xFF888888.toInt())
+                    speechRecognizer?.destroy()
+                    speechRecognizer = null
+                }
+            }
+        }
+        dragRow.addView(voiceBtn)
+
+        val expandBtn = TextView(this).apply {
+            text = "↗"
+            textSize = 16f
+            setTextColor(0xFFCEBAA2.toInt())
+            setPadding(0, 0, 12, 0)
+            setOnClickListener {
+                startActivity(Intent(this@OverlayService, MainActivity::class.java).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
+                hideOverlay()
+            }
+        }
+        dragRow.addView(expandBtn)
+
+        val closeBtn = TextView(this).apply {
+            text = "✕"
+            textSize = 16f
+            setTextColor(0xFF888888.toInt())
+            setOnClickListener { hideOverlay() }
+        }
+        dragRow.addView(closeBtn)
+        root.addView(dragRow)
+
         responseText = TextView(this).apply {
             text = "Listening..."
             setTextColor(0xFFEEEEEE.toInt())
             textSize = 15f
-            setPadding(0, 0, 0, 12)
+            setPadding(0, 4, 0, 8)
         }
         root.addView(responseText)
 
         waveformView = WaveformView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 56)
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 48)
         }
         root.addView(waveformView)
 
         val inputRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(0, 12, 0, 0)
+            setPadding(0, 8, 0, 0)
         }
 
         inputField = EditText(this).apply {
@@ -112,7 +173,7 @@ class OverlayService : Service() {
             text = "→"
             textSize = 20f
             setTextColor(0xFFCEBAA2.toInt())
-            setPadding(12, 0, 8, 0)
+            setPadding(12, 0, 0, 0)
             setOnClickListener {
                 val text = inputField.text.toString().trim()
                 if (text.isNotEmpty()) {
@@ -125,37 +186,14 @@ class OverlayService : Service() {
 
         val micBtn = TextView(this).apply {
             text = "🎙"
-            textSize = 20f
-            setPadding(8, 0, 0, 0)
+            textSize = 18f
+            setPadding(12, 0, 0, 0)
             setOnClickListener { startListening() }
         }
         inputRow.addView(micBtn)
-
-        val closeBtn = TextView(this).apply {
-            text = "✕"
-            textSize = 16f
-            setTextColor(0xFF888888.toInt())
-            setPadding(16, 0, 0, 0)
-            setOnClickListener { hideOverlay() }
-        }
-        inputRow.addView(closeBtn)
         root.addView(inputRow)
 
-        val expandBtn = TextView(this).apply {
-            text = "Open GAMA ↗"
-            textSize = 11f
-            setTextColor(0xFFCEBAA2.toInt())
-            setPadding(0, 8, 0, 0)
-            setOnClickListener {
-                startActivity(Intent(this@OverlayService, MainActivity::class.java).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                })
-                hideOverlay()
-            }
-        }
-        root.addView(expandBtn)
-
-        val params = WindowManager.LayoutParams(
+        overlayParams = WindowManager.LayoutParams(
             (resources.displayMetrics.widthPixels * 0.92).toInt(),
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
@@ -166,8 +204,24 @@ class OverlayService : Service() {
             y = 120
         }
 
+        // Make draggable
+        var lastX = 0f
+        var lastY = 0f
+        dragHandle.setOnTouchListener { _, event ->
+            when (event.action) {
+                android.view.MotionEvent.ACTION_DOWN -> { lastX = event.rawX; lastY = event.rawY }
+                android.view.MotionEvent.ACTION_MOVE -> {
+                    overlayParams.x += (event.rawX - lastX).toInt()
+                    overlayParams.y -= (event.rawY - lastY).toInt()
+                    lastX = event.rawX; lastY = event.rawY
+                    windowManager?.updateViewLayout(root, overlayParams)
+                }
+            }
+            true
+        }
+
         overlayView = root
-        windowManager?.addView(root, params)
+        windowManager?.addView(root, overlayParams)
         isActive = true
         handler.postDelayed({ startListening() }, 400)
     }
@@ -182,7 +236,7 @@ class OverlayService : Service() {
     }
 
     private fun startListening() {
-        if (!isActive) return
+        if (!isActive || !voiceEnabled) return
         handler.post {
             responseText.text = "Listening..."
             speechRecognizer?.destroy()
@@ -265,15 +319,20 @@ class OverlayService : Service() {
 
                         val hasCommand = handleAction(reply)
 
-                        if (ttsReady && !hasCommand) {
-                            tts?.speak(reply.replace(Regex("[*_#]"), "").take(200), TextToSpeech.QUEUE_FLUSH, null, "done")
-                            tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
-                                override fun onStart(u: String?) {}
-                                override fun onDone(u: String?) { handler.postDelayed({ if (isActive) startListening() }, 400) }
-                                override fun onError(u: String?) { handler.post { if (isActive) startListening() } }
-                            })
-                        } else if (!hasCommand) {
-                            handler.postDelayed({ if (isActive) startListening() }, 800)
+                        if (ttsReady) {
+                            val speakText = if (!hasCommand) reply.replace(Regex("[*_#]"), "").take(200) else ""
+                            if (speakText.isNotEmpty()) {
+                                tts?.speak(speakText, TextToSpeech.QUEUE_FLUSH, null, "done")
+                                tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+                                    override fun onStart(u: String?) {}
+                                    override fun onDone(u: String?) { handler.postDelayed({ if (isActive && voiceEnabled) startListening() }, 400) }
+                                    override fun onError(u: String?) { handler.post { if (isActive && voiceEnabled) startListening() } }
+                                })
+                            } else {
+                                handler.postDelayed({ if (isActive && voiceEnabled) startListening() }, 800)
+                            }
+                        } else {
+                            handler.postDelayed({ if (isActive && voiceEnabled) startListening() }, 800)
                         }
                     } catch (e: Exception) {
                         responseText.text = "Error"
@@ -368,8 +427,12 @@ class OverlayService : Service() {
 
             Regex("(?i)SPOTIFY:(.+)").find(t)?.let {
                 val query = it.groupValues[1].trim()
-                val spotifyUri = android.net.Uri.parse("spotify:search:$query")
-                val intent = Intent(Intent.ACTION_VIEW, spotifyUri).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+                speak("Opening Spotify")
+                val spotifyUri = android.net.Uri.parse("spotify:search:${Uri.encode(query)}")
+                val intent = Intent(Intent.ACTION_VIEW, spotifyUri).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    setPackage("com.spotify.music")
+                }
                 try { startActivity(intent) } catch (e: Exception) {
                     startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://open.spotify.com/search/${android.net.Uri.encode(query)}")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
                 }
@@ -378,12 +441,22 @@ class OverlayService : Service() {
 
             Regex("(?i)YOUTUBE_MUSIC:(.+)").find(t)?.let {
                 val query = it.groupValues[1].trim()
-                try { startActivity(Intent(Intent.ACTION_SEARCH).apply { setPackage("com.google.android.apps.youtube.music"); putExtra("query", query); addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }) }
-                catch (e: Exception) { startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://music.youtube.com/search?q=${android.net.Uri.encode(query)}")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }) }
+                speak("Opening YouTube Music")
+                val ytmIntent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://music.youtube.com/search?q=${android.net.Uri.encode(query)}")).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    setPackage("com.google.android.apps.youtube.music")
+                }
+                try { startActivity(ytmIntent) } catch (e: Exception) {
+                    startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://music.youtube.com/search?q=${android.net.Uri.encode(query)}")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) })
+                }
                 return true
             }
         }
         return false
+    }
+
+    private fun speak(text: String) {
+        if (ttsReady) tts?.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, null)
     }
 
     private fun lookupContact(nameOrNumber: String): String {
