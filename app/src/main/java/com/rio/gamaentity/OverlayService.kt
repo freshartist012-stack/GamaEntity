@@ -397,10 +397,14 @@ Never use contact names in commands, always use their number.""")
                 return true
             }
 
-            Regex("(?i)CALL:([^\n]+)").find(t)?.let {
-                val number = lookupContact(it.groupValues[1].trim())
-                try { startActivity(Intent(Intent.ACTION_CALL, android.net.Uri.parse("tel:$number")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }) } catch (e: Exception) {}
-                return true
+            if (!t.contains(Regex("(?i)PLEASE_CALL"))) {
+                Regex("(?i)CALL:([^\n]+)").find(t)?.let {
+                    startActivity(Intent(this, AssistantOverlayActivity::class.java).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        putExtra("execute_command", reply)
+                    })
+                    return true
+                }
             }
 
             Regex("(?i)GOOGLE:(.+)").find(t)?.let {
