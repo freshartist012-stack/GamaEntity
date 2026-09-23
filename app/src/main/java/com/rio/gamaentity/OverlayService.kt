@@ -188,7 +188,11 @@ class OverlayService : Service() {
             text = "🎙"
             textSize = 18f
             setPadding(12, 0, 0, 0)
-            setOnClickListener { startListening() }
+            setOnClickListener {
+                try { speechRecognizer?.cancel(); speechRecognizer?.destroy() } catch (e: Exception) {}
+                speechRecognizer = null
+                handler.postDelayed({ startListening() }, 200)
+            }
         }
         inputRow.addView(micBtn)
         root.addView(inputRow)
