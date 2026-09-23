@@ -189,9 +189,14 @@ class OverlayService : Service() {
             textSize = 18f
             setPadding(12, 0, 0, 0)
             setOnClickListener {
-                try { speechRecognizer?.cancel(); speechRecognizer?.destroy() } catch (e: Exception) {}
+                responseText.text = "Starting..."
+                try { speechRecognizer?.cancel() } catch (e: Exception) {}
+                try { speechRecognizer?.destroy() } catch (e: Exception) {}
                 speechRecognizer = null
-                handler.postDelayed({ startListening() }, 200)
+                handler.postDelayed({
+                    speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this@OverlayService)
+                    handler.postDelayed({ startListening() }, 300)
+                }, 500)
             }
         }
         inputRow.addView(micBtn)
