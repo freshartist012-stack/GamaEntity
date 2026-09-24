@@ -363,6 +363,15 @@ Never use contact names in commands, always use their number.""")
     }
 
     private fun handleAction(reply: String): Boolean {
+        // Check PLEASE_CALL first before loop to avoid CALL matching it
+        if (reply.contains(Regex("(?i)PLEASE_CALL:"))) {
+            startActivity(Intent(this, AssistantOverlayActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                putExtra("execute_command", reply)
+            })
+            return true
+        }
+
         for (line in reply.split("\n")) {
             val t = line.trim()
 
