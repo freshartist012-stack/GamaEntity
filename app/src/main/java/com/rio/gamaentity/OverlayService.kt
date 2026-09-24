@@ -188,16 +188,7 @@ class OverlayService : Service() {
             text = "🎙"
             textSize = 18f
             setPadding(12, 0, 0, 0)
-            setOnClickListener {
-                responseText.text = "Starting..."
-                try { speechRecognizer?.cancel() } catch (e: Exception) {}
-                try { speechRecognizer?.destroy() } catch (e: Exception) {}
-                speechRecognizer = null
-                handler.postDelayed({
-                    speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this@OverlayService)
-                    handler.postDelayed({ startListening() }, 300)
-                }, 500)
-            }
+            setOnClickListener { startListening() }
         }
         inputRow.addView(micBtn)
         root.addView(inputRow)
@@ -247,51 +238,43 @@ class OverlayService : Service() {
 
     private fun startListening() {
         if (!isActive || !voiceEnabled) return
-        handler.postDelayed({
-            if (!isActive || !voiceEnabled) return@postDelayed
-            handler.post {
-                try { speechRecognizer?.cancel(); speechRecognizer?.destroy() } catch (e: Exception) {}
-                speechRecognizer = null
+        try { speechRecognizer?.cancel(); speechRecognizer?.destroy() } catch (e: Exception) {}
+        speechRecognizer = null
+        if (!isActive || !voiceEnabled) return
+        responseText.text = "Listening..."
+        val sr = SpeechRecognizer.createSpeechRecognizer(this)
+        sr.setRecognitionListener(object : RecognitionListener {
+            override fun onResults(results: Bundle?) {
+                val transcript = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
+                if (!transcript.isNullOrEmpty() && isActive) {
+                    responseText.text = "You: $transcript"
+                    sendToGAMA(transcript)
+                } else if (isActive && voiceEnabled) {
+                    handler.postDelayed({ startListening() }, 500)
+                }
             }
-            handler.postDelayed({
-                if (!isActive || !voiceEnabled) return@postDelayed
-                responseText.text = "Listening..."
-                speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
-            speechRecognizer?.setRecognitionListener(object : RecognitionListener {
-                override fun onResults(results: Bundle?) {
-                    val transcript = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
-                    if (!transcript.isNullOrEmpty() && isActive) {
-                        responseText.text = "You: $transcript"
-                        sendToGAMA(transcript)
-                    } else if (isActive) {
-                        handler.postDelayed({ startListening() }, 300)
-                    }
-                }
-                override fun onError(error: Int) {
-                    if (isActive) responseText.text = "Tap 🎙 to speak"
-                }
-                override fun onReadyForSpeech(p: Bundle?) { responseText.text = "Speak..." }
-                override fun onBeginningOfSpeech() {}
-                override fun onRmsChanged(rmsdB: Float) { 
-                    handler.post { 
-                        if (::waveformView.isInitialized) waveformView.updateAmplitude((rmsdB + 10) * 300) 
-                    } 
-                }
-                override fun onBufferReceived(b: ByteArray?) {}
-                override fun onEndOfSpeech() { handler.post { waveformView.updateAmplitude(0f) } }
-                override fun onPartialResults(p: Bundle?) {
-                    val partial = p?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
-                    if (!partial.isNullOrEmpty()) handler.post { responseText.text = partial }
-                }
-                override fun onEvent(e: Int, p: Bundle?) {}
-            })
-            speechRecognizer?.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            })
-            }, 200)
-        }, 300)
+            override fun onError(error: Int) {
+                if (isActive) responseText.text = "Tap 🎙 to speak"
+            }
+            override fun onReadyForSpeech(p: Bundle?) { responseText.text = "Speak..." }
+            override fun onBeginningOfSpeech() {}
+            override fun onRmsChanged(rmsdB: Float) {
+                if (::waveformView.isInitialized) waveformView.updateAmplitude((rmsdB + 10) * 300)
+            }
+            override fun onBufferReceived(b: ByteArray?) {}
+            override fun onEndOfSpeech() { if (::waveformView.isInitialized) waveformView.updateAmplitude(0f) }
+            override fun onPartialResults(p: Bundle?) {
+                val partial = p?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
+                if (!partial.isNullOrEmpty()) responseText.text = partial
+            }
+            override fun onEvent(e: Int, p: Bundle?) {}
+        })
+        sr.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+        })
+        speechRecognizer = sr
     }
 
     private fun sendToGAMA(transcript: String) {
