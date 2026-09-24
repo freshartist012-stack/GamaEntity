@@ -290,7 +290,7 @@ class MainActivity : AppCompatActivity() {
                     }
                     // Reset system prompt so it uses new language
                     systemPromptAdded = false
-                    messages = org.json.JSONArray()
+                    while (messages.length() > 0) messages.remove(0)
                 }
                 .show()
             drawerLayout.closeDrawers()
