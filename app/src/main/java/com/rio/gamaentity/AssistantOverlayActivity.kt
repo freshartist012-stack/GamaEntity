@@ -139,19 +139,43 @@ class AssistantOverlayActivity : Activity() {
     private fun showPleaseCallConfirmation(contactName: String, specifiedNetwork: String) {
         val networks = arrayOf("MTN", "Vodacom", "Telkom", "Cell C")
         val ussdCodes = mapOf("MTN" to "*121*", "Vodacom" to "*140*", "Telkom" to "*140*", "Cell C" to "*111*")
-        val number = lookupContact(contactName)
+        val contacts = getContactsList()
+        val names = contacts.map { it.first }.toTypedArray()
+        var selectedNumber = lookupContact(contactName)
 
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(48, 16, 48, 0)
         }
-        layout.addView(TextView(this).apply { text = "Please call: $contactName"; textSize = 15f })
-        layout.addView(TextView(this).apply { text = "Your network:"; textSize = 12f; setPadding(0, 12, 0, 4) })
 
+        val nameView = TextView(this).apply { text = "Please call: $contactName"; textSize = 15f }
+        layout.addView(nameView)
+        layout.addView(TextView(this).apply { text = "Change contact:"; textSize = 12f; setPadding(0, 8, 0, 4) })
+
+        val contactSpinner = Spinner(this)
+        val contactAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, names)
+        contactAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        contactSpinner.adapter = contactAdapter
+        val resolvedDigits = selectedNumber.replace("[^\\d]".toRegex(), "")
+        val defaultIdx = contacts.indexOfFirst { c ->
+            val cNum = c.second.replace("[^\\d]".toRegex(), "")
+            cNum.takeLast(7) == resolvedDigits.takeLast(7) || c.first.lowercase().contains(contactName.lowercase())
+        }
+        if (defaultIdx >= 0) contactSpinner.setSelection(defaultIdx)
+        contactSpinner.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(p: android.widget.AdapterView<*>?, v: android.view.View?, pos: Int, id: Long) {
+                selectedNumber = formatNumber(contacts[pos].second)
+                nameView.text = "Please call: ${contacts[pos].first}"
+            }
+            override fun onNothingSelected(p: android.widget.AdapterView<*>?) {}
+        }
+        layout.addView(contactSpinner)
+
+        layout.addView(TextView(this).apply { text = "Your network:"; textSize = 12f; setPadding(0, 12, 0, 4) })
         val networkSpinner = Spinner(this)
-        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, networks)
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-        networkSpinner.adapter = adapter
+        val netAdapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, networks)
+        netAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        networkSpinner.adapter = netAdapter
         if (specifiedNetwork.isNotEmpty()) {
             val idx = networks.indexOfFirst { it.lowercase().contains(specifiedNetwork.lowercase()) }
             if (idx >= 0) networkSpinner.setSelection(idx)
@@ -165,7 +189,7 @@ class AssistantOverlayActivity : Activity() {
             .setPositiveButton("Send") { _, _ ->
                 val network = networks[networkSpinner.selectedItemPosition]
                 val ussd = ussdCodes[network] ?: "*140*"
-                val cleanNumber = number.replace("[^\\d]".toRegex(), "").let {
+                val cleanNumber = selectedNumber.replace("[^\\d]".toRegex(), "").let {
                     if (it.startsWith("27") && it.length == 11) "0${it.substring(2)}" else it
                 }
                 val intent = Intent(Intent.ACTION_CALL, Uri.parse("tel:$ussd$cleanNumber%23"))

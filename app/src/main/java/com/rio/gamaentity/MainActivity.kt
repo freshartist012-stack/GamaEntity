@@ -430,8 +430,9 @@ class MainActivity : AppCompatActivity() {
     private fun buildSystemPrompt(): String {
         val contacts = getContacts()
         val contactsSection = if (contacts.isNotEmpty()) "CONTACTS:\n$contacts\n" else ""
+        val langName = getLanguageName()
         return """You are GAMA, an AI agent inside an Android phone. The user's name is $userName.
-Be natural, first person, concise. Never fabricate.
+Always respond in $langName. Be natural, first person, concise. Never fabricate.
 
 $contactsSection
 NEVER output action commands unless the user uses words like "send", "call", "search", "email", "open" directed at a specific task.

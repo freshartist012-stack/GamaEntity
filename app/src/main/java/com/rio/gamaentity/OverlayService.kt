@@ -67,6 +67,12 @@ class OverlayService : Service() {
                 val locale = if (parts.size == 2) java.util.Locale(parts[0], parts[1]) else java.util.Locale.getDefault()
                 tts?.language = locale
             }
+            if (ttsReady) {
+                val appLang = getSharedPreferences("gama_prefs", android.content.Context.MODE_PRIVATE).getString("app_language", "en-ZA") ?: "en-ZA"
+                val parts = appLang.split("-")
+                val locale = if (parts.size == 2) java.util.Locale(parts[0], parts[1]) else java.util.Locale.getDefault()
+                tts?.language = locale
+            }
         }
     }
 
@@ -294,7 +300,9 @@ class OverlayService : Service() {
             val contactsSection = if (contacts.isNotEmpty()) "CONTACTS:\n$contacts\n" else ""
             messages.put(JSONObject().apply {
                 put("role", "system")
-                put("content", """You are GAMA, a concise AI voice assistant. User: $userName. Be very brief.
+                val appLang = getSharedPreferences("gama_prefs", android.content.Context.MODE_PRIVATE).getString("app_language", "en-ZA") ?: "en-ZA"
+                val langName = mapOf("en-ZA" to "English", "zu-ZA" to "Zulu", "af-ZA" to "Afrikaans", "st-ZA" to "Sotho", "xh-ZA" to "Xhosa")[appLang] ?: "English"
+                put("content", """You are GAMA, a concise AI voice assistant. User: $userName. Always respond in $langName. Be very brief.
 $contactsSection
 Only output commands when explicitly asked. Use exact numbers from contacts:
 CALL:NUMBER (regular call)
