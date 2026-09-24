@@ -89,6 +89,12 @@ class MainActivity : AppCompatActivity() {
 
         tts = TextToSpeech(this) { status ->
             ttsReady = status == TextToSpeech.SUCCESS
+            if (ttsReady) {
+                val appLang = prefs.getString("app_language", "en-ZA") ?: "en-ZA"
+                val parts = appLang.split("-")
+                val locale = if (parts.size == 2) java.util.Locale(parts[0], parts[1]) else java.util.Locale.getDefault()
+                tts.language = locale
+            }
         }
 
         findViewById<ImageButton>(R.id.menuButton).setOnClickListener {

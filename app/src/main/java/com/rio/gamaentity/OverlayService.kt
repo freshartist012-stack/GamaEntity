@@ -61,6 +61,12 @@ class OverlayService : Service() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         tts = TextToSpeech(this) { status ->
             ttsReady = status == TextToSpeech.SUCCESS
+            if (ttsReady) {
+                val appLang = getSharedPreferences("gama_prefs", android.content.Context.MODE_PRIVATE).getString("app_language", "en-ZA") ?: "en-ZA"
+                val parts = appLang.split("-")
+                val locale = if (parts.size == 2) java.util.Locale(parts[0], parts[1]) else java.util.Locale.getDefault()
+                tts?.language = locale
+            }
         }
     }
 
@@ -364,7 +370,23 @@ Never use contact names in commands, always use their number.""")
         // Check PLEASE_CALL first before loop to avoid CALL matching it
         if (reply.contains(Regex("(?i)PLEASE_CALL:"))) {
             startActivity(Intent(this, AssistantOverlayActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                putExtra("execute_command", reply)
+            })
+            return true
+        }
+
+        if (reply.contains(Regex("(?i)WHATSAPP:"))) {
+            startActivity(Intent(this, AssistantOverlayActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                putExtra("execute_command", reply)
+            })
+            return true
+        }
+
+        if (reply.contains(Regex("(?i)\bCALL:"))) {
+            startActivity(Intent(this, AssistantOverlayActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
                 putExtra("execute_command", reply)
             })
             return true
@@ -431,21 +453,7 @@ Never use contact names in commands, always use their number.""")
                 return true
             }
 
-            Regex("(?i)WHATSAPP:([^:]+):(.+)").find(t)?.let {
-                startActivity(Intent(this, AssistantOverlayActivity::class.java).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    putExtra("execute_command", reply)
-                })
-                return true
-            }
 
-            Regex("(?i)PLEASE_CALL:(.+)").find(t)?.let {
-                startActivity(Intent(this, AssistantOverlayActivity::class.java).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    putExtra("execute_command", reply)
-                })
-                return true
-            }
 
             Regex("(?i)GMAIL:(.+)").find(t)?.let {
                 startActivity(Intent(this, AssistantOverlayActivity::class.java).apply {
