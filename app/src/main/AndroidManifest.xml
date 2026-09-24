@@ -40,16 +40,6 @@
                 <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
         </activity>
-        <activity
-            android:name=".AssistantOverlayActivity"
-            android:exported="true"
-            android:theme="@style/Theme.AppCompat.Dialog"
-            android:windowSoftInputMode="adjustResize">
-            <intent-filter>
-                <action android:name="android.intent.action.ASSIST"/>
-                <category android:name="android.intent.category.DEFAULT"/>
-            </intent-filter>
-        </activity>
         <activity android:name=".VoiceCaptureActivity" android:exported="false" android:theme="@android:style/Theme.Translucent.NoTitleBar"/>
         <activity android:name=".GroqSetupActivity" android:exported="false"/>
         <activity android:name=".AboutActivity" android:exported="false"/>
