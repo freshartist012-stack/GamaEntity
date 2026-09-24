@@ -184,7 +184,12 @@ class MainActivity : AppCompatActivity() {
         })
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+            val appLang = prefs.getString("app_language", "en-ZA") ?: "en-ZA"
+            val parts = appLang.split("-")
+            val locale = if (parts.size == 2) java.util.Locale(parts[0], parts[1]) else java.util.Locale.getDefault()
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, appLang)
+            putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE, false)
         }
         speechRecognizer?.startListening(intent)
     }
@@ -254,6 +259,28 @@ class MainActivity : AppCompatActivity() {
             drawerLayout.closeDrawers()
         }
         drawerContent.addView(overlayBtn)
+
+        val langBtn = Button(this)
+        val savedLang = prefs.getString("app_language", "en-ZA") ?: "en-ZA"
+        val langNames = mapOf("en-ZA" to "English (SA)", "zu-ZA" to "Zulu", "af-ZA" to "Afrikaans", "st-ZA" to "Sotho", "xh-ZA" to "Xhosa")
+        langBtn.text = "Language: ${langNames[savedLang] ?: "English"}"
+        langBtn.setBackgroundColor(0xFF2E5090.toInt())
+        langBtn.setTextColor(0xFFFFFFFF.toInt())
+        langBtn.layoutParams = btnParams
+        langBtn.setOnClickListener {
+            val langs = langNames.keys.toTypedArray()
+            val names = langNames.values.toTypedArray()
+            AlertDialog.Builder(this)
+                .setTitle("Select Language")
+                .setItems(names) { _, which ->
+                    val selected = langs[which]
+                    prefs.edit().putString("app_language", selected).apply()
+                    langBtn.text = "Language: ${names[which]}"
+                }
+                .show()
+            drawerLayout.closeDrawers()
+        }
+        drawerContent.addView(langBtn)
 
         val keysBtn = Button(this)
         keysBtn.text = "API Keys"
@@ -378,6 +405,11 @@ class MainActivity : AppCompatActivity() {
             d.length == 9 -> "27$d"
             else -> d
         }
+    }
+
+    private fun getLanguageName(): String {
+        val lang = prefs.getString("app_language", "en-ZA") ?: "en-ZA"
+        return mapOf("en-ZA" to "English", "zu-ZA" to "Zulu", "af-ZA" to "Afrikaans", "st-ZA" to "Sotho", "xh-ZA" to "Xhosa")[lang] ?: "English"
     }
 
     private fun buildSystemPrompt(): String {
@@ -645,7 +677,12 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         })
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+            val appLang = prefs.getString("app_language", "en-ZA") ?: "en-ZA"
+            val parts = appLang.split("-")
+            val locale = if (parts.size == 2) java.util.Locale(parts[0], parts[1]) else java.util.Locale.getDefault()
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, appLang)
+            putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE, false)
         }
         recognizer.startListening(intent)
     }
@@ -833,7 +870,12 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         })
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+            val appLang = prefs.getString("app_language", "en-ZA") ?: "en-ZA"
+            val parts = appLang.split("-")
+            val locale = if (parts.size == 2) java.util.Locale(parts[0], parts[1]) else java.util.Locale.getDefault()
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, appLang)
+            putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE, false)
         }
         recognizer.startListening(intent)
     }

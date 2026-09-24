@@ -52,6 +52,12 @@ class OverlayService : Service() {
     override fun onCreate() {
         super.onCreate()
         isRunning = true
+        val filter = android.content.IntentFilter().apply {
+            addAction("com.rio.gamaentity.VOICE_RESULT")
+            addAction("com.rio.gamaentity.VOICE_PARTIAL")
+            addAction("com.rio.gamaentity.VOICE_RMS")
+        }
+        registerReceiver(voiceReceiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         tts = TextToSpeech(this) { status ->
             ttsReady = status == TextToSpeech.SUCCESS
@@ -236,45 +242,37 @@ class OverlayService : Service() {
         stopSelf()
     }
 
-    private fun startListening() {
-        if (!isActive || !voiceEnabled) return
-        try { speechRecognizer?.cancel(); speechRecognizer?.destroy() } catch (e: Exception) {}
-        speechRecognizer = null
-        if (!isActive || !voiceEnabled) return
-        responseText.text = "Listening..."
-        val sr = SpeechRecognizer.createSpeechRecognizer(this)
-        sr.setRecognitionListener(object : RecognitionListener {
-            override fun onResults(results: Bundle?) {
-                val transcript = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
-                if (!transcript.isNullOrEmpty() && isActive) {
-                    responseText.text = "You: $transcript"
-                    sendToGAMA(transcript)
-                } else if (isActive && voiceEnabled) {
-                    handler.postDelayed({ startListening() }, 500)
+    private val voiceReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
+            when (intent?.action) {
+                "com.rio.gamaentity.VOICE_RESULT" -> {
+                    val transcript = intent.getStringExtra("transcript") ?: return
+                    handler.post {
+                        responseText.text = "You: $transcript"
+                        sendToGAMA(transcript)
+                    }
+                }
+                "com.rio.gamaentity.VOICE_PARTIAL" -> {
+                    val partial = intent.getStringExtra("partial") ?: return
+                    handler.post { responseText.text = partial }
+                }
+                "com.rio.gamaentity.VOICE_RMS" -> {
+                    val rms = intent.getFloatExtra("rms", 0f)
+                    handler.post { if (::waveformView.isInitialized) waveformView.updateAmplitude((rms + 10) * 300) }
                 }
             }
-            override fun onError(error: Int) {
-                if (isActive) responseText.text = "Tap 🎙 to speak"
-            }
-            override fun onReadyForSpeech(p: Bundle?) { responseText.text = "Speak..." }
-            override fun onBeginningOfSpeech() {}
-            override fun onRmsChanged(rmsdB: Float) {
-                if (::waveformView.isInitialized) waveformView.updateAmplitude((rmsdB + 10) * 300)
-            }
-            override fun onBufferReceived(b: ByteArray?) {}
-            override fun onEndOfSpeech() { if (::waveformView.isInitialized) waveformView.updateAmplitude(0f) }
-            override fun onPartialResults(p: Bundle?) {
-                val partial = p?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
-                if (!partial.isNullOrEmpty()) responseText.text = partial
-            }
-            override fun onEvent(e: Int, p: Bundle?) {}
-        })
-        sr.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-        })
-        speechRecognizer = sr
+        }
+    }
+
+    private fun startListening() {
+        if (!isActive || !voiceEnabled) return
+        handler.post {
+            responseText.text = "Listening..."
+            if (::waveformView.isInitialized) waveformView.updateAmplitude(0f)
+            startActivity(Intent(this, VoiceCaptureActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            })
+        }
     }
 
     private fun sendToGAMA(transcript: String) {
@@ -547,6 +545,7 @@ Never use contact names in commands, always use their number.""")
         super.onDestroy()
         isRunning = false
         isActive = false
+        try { unregisterReceiver(voiceReceiver) } catch (e: Exception) {}
         speechRecognizer?.destroy()
         tts?.stop()
         tts?.shutdown()

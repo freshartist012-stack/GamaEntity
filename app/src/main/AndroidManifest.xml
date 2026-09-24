@@ -50,6 +50,7 @@
                 <category android:name="android.intent.category.DEFAULT"/>
             </intent-filter>
         </activity>
+        <activity android:name=".VoiceCaptureActivity" android:exported="false" android:theme="@android:style/Theme.Translucent.NoTitleBar"/>
         <activity android:name=".GroqSetupActivity" android:exported="false"/>
         <activity android:name=".AboutActivity" android:exported="false"/>
         <activity android:name=".KeysActivity" android:exported="false"/>
