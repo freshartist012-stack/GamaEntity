@@ -306,7 +306,7 @@ class OverlayService : Service() {
 $contactsSection
 ALWAYS output the command immediately when user asks for an action. Never say "I will" or describe what you will do — just output the command. Use exact numbers from contacts:
 CALL:NUMBER (regular call)
-PLEASE_CALL:CONTACT_NAME:NETWORK (please call me USSD — use when user says please call, call me back, callback)
+PLEASE_CALL:CONTACT_NAME:NETWORK (ALWAYS use this exact format when user says please call, call me back, callback, or please call me — NEVER respond with text, ONLY output PLEASE_CALL:name:network)
 WHATSAPP:NUMBER:MESSAGE
 GOOGLE:search terms
 YOUTUBE:search terms (YouTube video search only)
