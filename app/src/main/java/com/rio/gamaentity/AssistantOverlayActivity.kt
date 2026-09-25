@@ -15,8 +15,14 @@ import androidx.appcompat.app.AlertDialog
 
 class AssistantOverlayActivity : Activity() {
 
+    private var reshowOverlay = false
+
+    private var reshowOverlay = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        reshowOverlay = intent?.getBooleanExtra("reshow_overlay", false) ?: false
+        reshowOverlay = intent?.getBooleanExtra("reshow_overlay", false) ?: false
 
         // Small floating window
         window.setLayout(
@@ -320,6 +326,14 @@ class AssistantOverlayActivity : Activity() {
             d.startsWith("0") && d.length == 10 -> "27${d.substring(1)}"
             d.length == 9 -> "27$d"
             else -> d
+        }
+    }
+    override fun onDestroy() {
+        super.onDestroy()
+        if (reshowOverlay) {
+            startService(android.content.Intent(this, OverlayService::class.java).apply {
+                action = OverlayService.ACTION_SHOW
+            })
         }
     }
 }

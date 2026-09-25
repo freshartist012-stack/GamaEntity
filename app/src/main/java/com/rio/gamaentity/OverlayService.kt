@@ -376,26 +376,16 @@ Never use contact names in commands, always use their number.""")
 
     private fun handleAction(reply: String): Boolean {
         // Check PLEASE_CALL first before loop to avoid CALL matching it
-        if (reply.contains(Regex("(?i)PLEASE_CALL:"))) {
+        if (reply.contains(Regex("(?i)PLEASE_CALL:")) || 
+            reply.contains(Regex("(?i)WHATSAPP:")) ||
+            reply.contains(Regex("(?i)\bCALL:"))) {
+            // Hide overlay so confirmation screen is visible
+            overlayView?.let { windowManager?.removeView(it) }
+            overlayView = null
             startActivity(Intent(this, AssistantOverlayActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
                 putExtra("execute_command", reply)
-            })
-            return true
-        }
-
-        if (reply.contains(Regex("(?i)WHATSAPP:"))) {
-            startActivity(Intent(this, AssistantOverlayActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
-                putExtra("execute_command", reply)
-            })
-            return true
-        }
-
-        if (reply.contains(Regex("(?i)\bCALL:"))) {
-            startActivity(Intent(this, AssistantOverlayActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
-                putExtra("execute_command", reply)
+                putExtra("reshow_overlay", true)
             })
             return true
         }
