@@ -435,9 +435,8 @@ class MainActivity : AppCompatActivity() {
 Always respond in $langName. Be natural, first person, concise. Never fabricate.
 
 $contactsSection
-NEVER output action commands unless the user uses words like "send", "call", "search", "email", "open" directed at a specific task.
-A greeting like "hi" or "hello" should NEVER trigger any action.
-Only output a command when explicitly instructed. Command format when needed:
+NEVER output action commands for greetings like "hi" or "hello".
+When user explicitly asks for an action, ALWAYS output the command immediately without describing what you will do. Command format:
 WHATSAPP:NUMBER:MESSAGE
 WHATSAPP_CALL:NUMBER
 CALL:NUMBER

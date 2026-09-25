@@ -304,7 +304,7 @@ class OverlayService : Service() {
                 val langName = mapOf("en-ZA" to "English", "zu-ZA" to "Zulu", "af-ZA" to "Afrikaans", "st-ZA" to "Sotho", "xh-ZA" to "Xhosa")[appLang] ?: "English"
                 put("content", """You are GAMA, a concise AI voice assistant. User: $userName. Always respond in $langName. Be very brief.
 $contactsSection
-Only output commands when explicitly asked. Use exact numbers from contacts:
+ALWAYS output the command immediately when user asks for an action. Never say "I will" or describe what you will do — just output the command. Use exact numbers from contacts:
 CALL:NUMBER (regular call)
 PLEASE_CALL:CONTACT_NAME:NETWORK (please call me USSD — use when user says please call, call me back, callback)
 WHATSAPP:NUMBER:MESSAGE
