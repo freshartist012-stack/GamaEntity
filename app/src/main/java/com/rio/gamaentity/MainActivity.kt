@@ -501,29 +501,133 @@ Always use actual phone number from contacts, never the name.
 When writing emails write only the email content. Never add notes, disclaimers, or parenthetical comments. If you need more information ask the user before writing the email."""
     }
 
+    private var researchMessages = JSONArray()
+    private var researchSystemPromptAdded = false
+    private var pendingAttachmentText = ""
+
     private fun sendMessage() {
         val text = inputField.text.toString().trim()
-        if (text.isEmpty()) return
+        if (text.isEmpty() && pendingAttachmentText.isEmpty()) return
+        val fullText = if (pendingAttachmentText.isNotEmpty()) "$text
+
+$pendingAttachmentText" else text
         inputField.setText("")
-        addMessage("You", text, true)
+        pendingAttachmentText = ""
 
-        if (!systemPromptAdded) {
-            val systemMsg = JSONObject()
-            systemMsg.put("role", "system")
-            systemMsg.put("content", buildSystemPrompt())
-            messages.put(systemMsg)
-            systemPromptAdded = true
+        if (isResearchMode) {
+            sendResearchMessage(fullText)
+        } else {
+            addMessage("You", text, true)
+            if (!systemPromptAdded) {
+                val systemMsg = JSONObject()
+                systemMsg.put("role", "system")
+                systemMsg.put("content", buildSystemPrompt())
+                messages.put(systemMsg)
+                systemPromptAdded = true
+            }
+            val userMsg = JSONObject()
+            userMsg.put("role", "user")
+            userMsg.put("content", fullText)
+            messages.put(userMsg)
+            sendButton.isEnabled = false
+            micButton.isEnabled = false
+            typingIndicator.visibility = android.view.View.VISIBLE
+            if (modelType == "groq" && groqKey.isNotEmpty()) callGroq() else callGama()
         }
+    }
 
-        val userMsg = JSONObject()
-        userMsg.put("role", "user")
-        userMsg.put("content", text)
-        messages.put(userMsg)
+    private fun sendResearchMessage(text: String) {
+        addResearchMessage("You", text, true)
         sendButton.isEnabled = false
-        micButton.isEnabled = false
         typingIndicator.visibility = android.view.View.VISIBLE
 
-        if (modelType == "groq" && groqKey.isNotEmpty()) callGroq() else callGama()
+        if (!researchSystemPromptAdded) {
+            researchMessages.put(JSONObject().apply {
+                put("role", "system")
+                put("content", buildResearchSystemPrompt())
+            })
+            researchSystemPromptAdded = true
+        }
+        researchMessages.put(JSONObject().apply {
+            put("role", "user")
+            put("content", text)
+        })
+
+        val body = JSONObject().apply {
+            put("model", "openai/gpt-oss-120b")
+            put("messages", researchMessages)
+            put("max_tokens", 2000)
+            put("tool_choice", "none")
+        }
+
+        val request = okhttp3.Request.Builder()
+            .url("https://api.groq.com/openai/v1/chat/completions")
+            .addHeader("Authorization", "Bearer $groqKey")
+            .addHeader("Content-Type", "application/json")
+            .post(body.toString().toRequestBody("application/json".toMediaType()))
+            .build()
+
+        client.newCall(request).enqueue(object : okhttp3.Callback {
+            override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {
+                runOnUiThread {
+                    addResearchMessage("GAMA Research", "Connection error. Try again.", false)
+                    sendButton.isEnabled = true
+                    typingIndicator.visibility = android.view.View.GONE
+                }
+            }
+            override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) {
+                val b = response.body?.string()
+                runOnUiThread {
+                    try {
+                        val json = JSONObject(b ?: "")
+                        if (json.has("error")) {
+                            if (researchMessages.length() > 0) researchMessages.remove(researchMessages.length() - 1)
+                            addResearchMessage("GAMA Research", "Try again in a moment.", false)
+                        } else {
+                            val reply = json.getJSONArray("choices").getJSONObject(0)
+                                .getJSONObject("message").getString("content").trim()
+                            researchMessages.put(JSONObject().apply {
+                                put("role", "assistant")
+                                put("content", reply)
+                            })
+                            addResearchMessage("GAMA Research", reply, false)
+                        }
+                    } catch (e: Exception) {
+                        addResearchMessage("GAMA Research", "Error. Try again.", false)
+                    }
+                    sendButton.isEnabled = true
+                    typingIndicator.visibility = android.view.View.GONE
+                }
+            }
+        })
+    }
+
+    private fun addResearchMessage(sender: String, text: String, isUser: Boolean) {
+        val bubble = android.widget.TextView(this)
+        bubble.text = if (isUser) text else "🔍 $text"
+        bubble.textSize = 15f
+        bubble.setPadding(24, 16, 24, 16)
+        bubble.setTextColor(if (isUser) 0xFFFFFFFF.toInt() else resources.getColor(R.color.text_primary, null))
+        bubble.setBackgroundColor(if (isUser) resources.getColor(R.color.primary, null) else resources.getColor(R.color.surface, null))
+        val params = android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        params.setMargins(if (isUser) 80 else 0, 8, if (isUser) 0 else 80, 8)
+        params.gravity = if (isUser) android.view.Gravity.END else android.view.Gravity.START
+        bubble.layoutParams = params
+        researchMessagesContainer.addView(bubble)
+        researchScrollView.post { researchScrollView.fullScroll(android.view.View.FOCUS_DOWN) }
+    }
+
+    private fun buildResearchSystemPrompt(): String {
+        return """You are GAMA Research, an intelligent research assistant. User: $userName.
+Present information clearly and accurately. Structure responses as:
+1. Direct answer first
+2. Key context
+3. Supporting details
+4. Sources (if any)
+Be thorough but concise. Never fabricate information."""
     }
 
     private fun callGama() {
@@ -1556,6 +1660,32 @@ When writing emails write only the email content. Never add notes, disclaimers, 
 
 
 
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == 200 && resultCode == android.app.Activity.RESULT_OK) {
+            val uri = data?.data ?: return
+            val mimeType = contentResolver.getType(uri) ?: ""
+            try {
+                if (mimeType.startsWith("image/")) {
+                    val bitmap = android.provider.MediaStore.Images.Media.getBitmap(contentResolver, uri)
+                    val stream = java.io.ByteArrayOutputStream()
+                    bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 70, stream)
+                    val bytes = stream.toByteArray()
+                    val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.DEFAULT)
+                    pendingAttachmentText = "[Image attached - base64 length: ${base64.length}]"
+                    inputField.hint = "📎 Image attached — add your question"
+                } else {
+                    val text = contentResolver.openInputStream(uri)?.bufferedReader()?.readText() ?: ""
+                    pendingAttachmentText = "ATTACHED DOCUMENT:
+${text.take(3000)}"
+                    inputField.hint = "📎 Document attached — add your question"
+                }
+            } catch (e: Exception) {
+                android.widget.Toast.makeText(this, "Could not read file", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     override fun onDestroy() {
         super.onDestroy()
