@@ -64,6 +64,12 @@ class MainActivity : AppCompatActivity() {
     private var modelType = "groq"
     private var groqKey = ""
     private var systemPromptAdded = false
+    private var isResearchMode = false
+    private lateinit var researchScrollView: android.widget.ScrollView
+    private lateinit var researchMessagesContainer: android.widget.LinearLayout
+    private lateinit var modeToggleBtn: android.widget.Button
+    private lateinit var toolbarTitle: android.widget.TextView
+    private lateinit var attachButton: android.widget.ImageButton
     private var voiceModeActive = false
     private lateinit var waveformView: WaveformView
     private var audioRecord: android.media.AudioRecord? = null
@@ -103,6 +109,44 @@ class MainActivity : AppCompatActivity() {
         }
 
         typingIndicator = findViewById(R.id.typingIndicator)
+        researchScrollView = findViewById(R.id.researchScrollView)
+        researchMessagesContainer = findViewById(R.id.researchMessagesContainer)
+        modeToggleBtn = findViewById(R.id.modeToggleBtn)
+        toolbarTitle = findViewById(R.id.toolbarTitle)
+        attachButton = findViewById(R.id.attachButton)
+
+        modeToggleBtn.setOnClickListener {
+            isResearchMode = !isResearchMode
+            if (isResearchMode) {
+                scrollView.visibility = android.view.View.GONE
+                researchScrollView.visibility = android.view.View.VISIBLE
+                modeToggleBtn.text = "Chat"
+                toolbarTitle.text = "Research Mode"
+                inputField.hint = "Ask anything..."
+                micButton.visibility = android.view.View.GONE
+                attachButton.visibility = android.view.View.VISIBLE
+                waveformView.visibility = android.view.View.GONE
+                if (voiceModeActive) {
+                    voiceModeActive = false
+                }
+            } else {
+                scrollView.visibility = android.view.View.VISIBLE
+                researchScrollView.visibility = android.view.View.GONE
+                modeToggleBtn.text = "Research"
+                toolbarTitle.text = "GAMA Entity"
+                inputField.hint = "Message GAMA..."
+                micButton.visibility = android.view.View.VISIBLE
+                attachButton.visibility = android.view.View.GONE
+            }
+        }
+
+        attachButton.setOnClickListener {
+            val intent = android.content.Intent(android.content.Intent.ACTION_GET_CONTENT).apply {
+                type = "*/*"
+                putExtra(android.content.Intent.EXTRA_MIME_TYPES, arrayOf("image/*", "application/pdf", "text/*"))
+            }
+            startActivityForResult(intent, 200)
+        }
         waveformView = findViewById(R.id.waveformView)
         sendButton.setOnClickListener { sendMessage() }
 
