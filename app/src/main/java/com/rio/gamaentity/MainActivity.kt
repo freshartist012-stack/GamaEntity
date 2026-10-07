@@ -508,9 +508,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
     private fun sendMessage() {
         val text = inputField.text.toString().trim()
         if (text.isEmpty() && pendingAttachmentText.isEmpty()) return
-        val fullText = if (pendingAttachmentText.isNotEmpty()) "$text
-
-$pendingAttachmentText" else text
+        val fullText = if (pendingAttachmentText.isNotEmpty()) "$text\n\n$pendingAttachmentText" else text
         inputField.setText("")
         pendingAttachmentText = ""
 
