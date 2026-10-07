@@ -1677,8 +1677,7 @@ Be thorough but concise. Never fabricate information."""
                     inputField.hint = "📎 Image attached — add your question"
                 } else {
                     val text = contentResolver.openInputStream(uri)?.bufferedReader()?.readText() ?: ""
-                    pendingAttachmentText = "ATTACHED DOCUMENT:
-${text.take(3000)}"
+                    pendingAttachmentText = "ATTACHED DOCUMENT:\n${text.take(3000)}"
                     inputField.hint = "📎 Document attached — add your question"
                 }
             } catch (e: Exception) {
