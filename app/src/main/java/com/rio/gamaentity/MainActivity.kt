@@ -547,10 +547,62 @@ When writing emails write only the email content. Never add notes, disclaimers, 
     }
 
     private fun sendResearchMessage(text: String) {
+        if (!researchProfileSet) {
+            showResearchProfileSetup(text)
+            return
+        }
         addResearchMessage("You", text, true)
-        sendButton.isEnabled = false
-        typingIndicator.visibility = android.view.View.VISIBLE
+        showPurposeSelector(text)
+    }
 
+    private fun showPurposeSelector(question: String) {
+        val purposes = listOf(
+            "Just to know" to "simple",
+            "For school/writing" to "academic",
+            "For research/conclusion" to "deep",
+            "To create something" to "practical",
+            "To understand deeply" to "principles"
+        )
+        val row = android.widget.LinearLayout(this)
+        row.orientation = android.widget.LinearLayout.VERTICAL
+        row.setBackgroundColor(0xFF1A1A2E.toInt())
+        row.setPadding(16, 12, 16, 12)
+        val label = android.widget.TextView(this)
+        label.text = "What's this for?"
+        label.setTextColor(0xFFCEBAA2.toInt())
+        label.textSize = 13f
+        label.setPadding(0, 0, 0, 8)
+        row.addView(label)
+        val btnRow = android.widget.LinearLayout(this)
+        btnRow.orientation = android.widget.LinearLayout.HORIZONTAL
+        val scroll = android.widget.HorizontalScrollView(this)
+        scroll.addView(btnRow)
+        row.addView(scroll)
+        researchMessagesContainer.addView(row)
+        researchScrollView.post { researchScrollView.fullScroll(android.view.View.FOCUS_DOWN) }
+        for ((labelText, code) in purposes) {
+            val btn = android.widget.Button(this)
+            btn.text = labelText
+            btn.textSize = 11f
+            btn.setBackgroundColor(0xFF2E5090.toInt())
+            btn.setTextColor(0xFFFFFFFF.toInt())
+            val p = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            p.setMargins(0, 0, 8, 0)
+            btn.layoutParams = p
+            btn.setOnClickListener {
+                researchMessagesContainer.removeView(row)
+                executeResearchQuery(question, code)
+            }
+            btnRow.addView(btn)
+        }
+    }
+
+    private fun executeResearchQuery(question: String, purpose: String) {
+        sendButton.isEnabled = false
+        showResearchTyping(true)
         if (!researchSystemPromptAdded) {
             researchMessages.put(JSONObject().apply {
                 put("role", "system")
@@ -562,27 +614,24 @@ When writing emails write only the email content. Never add notes, disclaimers, 
             put("role", "user")
             put("content", question)
         })
-
         val body = JSONObject().apply {
             put("model", "openai/gpt-oss-120b")
             put("messages", researchMessages)
             put("max_tokens", 2000)
             put("tool_choice", "none")
         }
-
         val request = okhttp3.Request.Builder()
             .url("https://api.groq.com/openai/v1/chat/completions")
             .addHeader("Authorization", "Bearer $groqKey")
             .addHeader("Content-Type", "application/json")
             .post(body.toString().toRequestBody("application/json".toMediaType()))
             .build()
-
         client.newCall(request).enqueue(object : okhttp3.Callback {
             override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {
                 runOnUiThread {
                     addResearchMessage("GAMA Research", "Connection error. Try again.", false)
                     sendButton.isEnabled = true
-                    typingIndicator.visibility = android.view.View.GONE
+                    showResearchTyping(false)
                 }
             }
             override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) {
@@ -606,7 +655,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                         addResearchMessage("GAMA Research", "Error. Try again.", false)
                     }
                     sendButton.isEnabled = true
-                    typingIndicator.visibility = android.view.View.GONE
+                    showResearchTyping(false)
                 }
             }
         })
