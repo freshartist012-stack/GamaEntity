@@ -11,7 +11,7 @@ android {
         applicationId "com.rio.gamaentity"
         minSdk 26
         targetSdk 36
-        versionCode 145
+        versionCode 147
         versionName "1.0"
     }
 

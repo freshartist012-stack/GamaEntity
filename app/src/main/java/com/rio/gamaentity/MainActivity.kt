@@ -115,6 +115,14 @@ class MainActivity : AppCompatActivity() {
         toolbarTitle = findViewById(R.id.toolbarTitle)
         attachButton = findViewById(R.id.attachButton)
 
+        val savedProfile = prefs.getString("research_profile", "") ?: ""
+        if (savedProfile.isNotEmpty()) {
+            try {
+                researchProfile = org.json.JSONObject(savedProfile)
+                researchProfileSet = true
+            } catch (e: Exception) {}
+        }
+
         modeToggleBtn.setOnClickListener {
             isResearchMode = !isResearchMode
             if (isResearchMode) {
@@ -504,6 +512,10 @@ When writing emails write only the email content. Never add notes, disclaimers, 
     private var researchMessages = JSONArray()
     private var researchSystemPromptAdded = false
     private var pendingAttachmentText = ""
+    private var researchProfileSet = false
+    private var researchProfile = org.json.JSONObject()
+    private var pendingResearchQuestion = ""
+    private var researchPurpose = ""
 
     private fun sendMessage() {
         val text = inputField.text.toString().trim()
@@ -542,13 +554,13 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         if (!researchSystemPromptAdded) {
             researchMessages.put(JSONObject().apply {
                 put("role", "system")
-                put("content", buildResearchSystemPrompt())
+                put("content", buildResearchSystemPrompt(purpose))
             })
             researchSystemPromptAdded = true
         }
         researchMessages.put(JSONObject().apply {
             put("role", "user")
-            put("content", text)
+            put("content", question)
         })
 
         val body = JSONObject().apply {
@@ -618,14 +630,72 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         researchScrollView.post { researchScrollView.fullScroll(android.view.View.FOCUS_DOWN) }
     }
 
-    private fun buildResearchSystemPrompt(): String {
+    private fun buildResearchSystemPrompt(purpose: String = "simple"): String {
+        val style = when (purpose) {
+            "simple" -> "Give a clear, concise explanation. Key facts only. No unnecessary depth."
+            "academic" -> "Structure with context, cause and effect, historical background. Use citable facts and clear narrative flow."
+            "deep" -> "Find associations and connections. What leads to what. Help build a bigger picture. Include related concepts."
+            "practical" -> "Focus on steps, what is needed, what order to do things, what to watch out for. Action oriented."
+            "principles" -> "Explain how it works underneath. Use analogies. Focus on why, not just what."
+            else -> "Be clear and helpful."
+        }
+        val profile = if (researchProfile.length() > 0) "User profile: ${researchProfile}" else ""
         return """You are GAMA Research, an intelligent research assistant. User: $userName.
-Present information clearly and accurately. Structure responses as:
-1. Direct answer first
-2. Key context
-3. Supporting details
-4. Sources (if any)
-Be thorough but concise. Never fabricate information."""
+$profile
+RESPONSE STYLE: $style
+Always cite sources where possible. Never fabricate. Be honest when you don't know something."""
+    }
+
+    private fun showResearchProfileSetup(firstQuestion: String) {
+        pendingResearchQuestion = firstQuestion
+        addResearchMessage("GAMA Research", "Before we start — quick setup to help me assist you better.", false)
+
+        val questions = listOf(
+            "How do you learn best?" to listOf("Visual examples", "Step by step", "Just the facts", "Deep explanations"),
+            "Your knowledge level?" to listOf("Beginner", "Intermediate", "Advanced")
+        )
+
+        for ((q, options) in questions) {
+            val qView = android.widget.TextView(this)
+            qView.text = q
+            qView.setTextColor(0xFFCEBAA2.toInt())
+            qView.textSize = 13f
+            qView.setPadding(16, 12, 16, 4)
+            researchMessagesContainer.addView(qView)
+
+            val optRow = android.widget.LinearLayout(this)
+            optRow.orientation = android.widget.LinearLayout.HORIZONTAL
+            val scroll = android.widget.HorizontalScrollView(this)
+            scroll.addView(optRow)
+            researchMessagesContainer.addView(scroll)
+
+            for (opt in options) {
+                val btn = android.widget.Button(this)
+                btn.text = opt
+                btn.textSize = 11f
+                btn.setBackgroundColor(0xFF2E5090.toInt())
+                btn.setTextColor(0xFFFFFFFF.toInt())
+                val p = android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                p.setMargins(8, 0, 8, 0)
+                btn.layoutParams = p
+                btn.setOnClickListener {
+                    researchProfile.put(q, opt)
+                    btn.setBackgroundColor(0xFF4CAF50.toInt())
+                    btn.isEnabled = false
+                    if (researchProfile.length() >= questions.size) {
+                        researchProfileSet = true
+                        prefs.edit().putString("research_profile", researchProfile.toString()).apply()
+                        addResearchMessage("GAMA Research", "Got it. Now, what's your question for?", false)
+                        showPurposeSelector(pendingResearchQuestion)
+                    }
+                }
+                optRow.addView(btn)
+            }
+        }
+        researchScrollView.post { researchScrollView.fullScroll(android.view.View.FOCUS_DOWN) }
     }
 
     private fun callGama() {
