@@ -661,6 +661,11 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         })
     }
 
+    private fun showResearchTyping(show: Boolean) {
+        typingIndicator.text = if (show) "Researching..." else "GAMA is thinking..."
+        typingIndicator.visibility = if (show) android.view.View.VISIBLE else android.view.View.GONE
+    }
+
     private fun addResearchMessage(sender: String, text: String, isUser: Boolean) {
         val bubble = android.widget.TextView(this)
         bubble.text = if (isUser) text else "🔍 $text"
