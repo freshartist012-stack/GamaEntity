@@ -685,69 +685,81 @@ When writing emails write only the email content. Never add notes, disclaimers, 
     }
 
     private fun buildResearchSystemPrompt(purpose: String = "simple"): String {
+        val enjoys = if (researchProfile.has("enjoy")) researchProfile.getString("enjoy") else ""
+        val spends = if (researchProfile.has("time")) researchProfile.getString("time") else ""
+        val profileContext = if (enjoys.isNotEmpty()) "The user enjoys $enjoys and spends time on $spends. Use this to make examples and analogies relevant to them." else ""
+
         val style = when (purpose) {
-            "simple" -> "Give a clear, concise explanation. Key facts only. No unnecessary depth."
-            "academic" -> "Structure with context, cause and effect, historical background. Use citable facts and clear narrative flow."
-            "deep" -> "Find associations and connections. What leads to what. Help build a bigger picture. Include related concepts."
-            "practical" -> "Focus on steps, what is needed, what order to do things, what to watch out for. Action oriented."
-            "principles" -> "Explain how it works underneath. Use analogies. Focus on why, not just what."
-            else -> "Be clear and helpful."
+            "simple" -> """FORMAT: 2-3 short paragraphs max. No bullet points. Plain language. One key fact per sentence. Stop when the point is made."""
+            "academic" -> """FORMAT: Short intro (1 sentence). Then numbered points — each point max 2 sentences. End with 2-3 sources listed as: Source: [name]. Nothing more."""
+            "deep" -> """FORMAT: Start with the core idea in 1 sentence. Then 3-5 connected concepts, each on its own line with a dash. Show how they connect. Keep each point under 2 sentences."""
+            "practical" -> """FORMAT: Numbered steps only. Each step: one action, one sentence. No intro. No conclusion. Just the steps."""
+            "principles" -> """FORMAT: One analogy first. Then explain the principle in 2-3 sentences. Then one real example. Total response under 150 words."""
+            else -> """FORMAT: Keep it short and clear. Under 100 words."""
         }
-        val profile = if (researchProfile.length() > 0) "User profile: ${researchProfile}" else ""
-        return """You are GAMA Research, an intelligent research assistant. User: $userName.
-$profile
-RESPONSE STYLE: $style
-Always cite sources where possible. Never fabricate. Be honest when you don't know something."""
+
+        return """You are GAMA Research. User: $userName. $profileContext
+STRICT RULES:
+- Follow the FORMAT exactly. Do not add extra sections.
+- Never write more than what the format asks for.
+- Never say "I hope this helps" or similar.
+- If you don't know something, say so in one sentence.
+- Never fabricate facts or sources.
+$style"""
     }
 
     private fun showResearchProfileSetup(firstQuestion: String) {
         pendingResearchQuestion = firstQuestion
-        addResearchMessage("GAMA Research", "Before we start — quick setup to help me assist you better.", false)
+        addResearchMessage("GAMA Research", "Quick setup before we start. Two questions.", false)
 
-        val questions = listOf(
-            "How do you learn best?" to listOf("Visual examples", "Step by step", "Just the facts", "Deep explanations"),
-            "Your knowledge level?" to listOf("Beginner", "Intermediate", "Advanced")
+        val setupQuestions = listOf(
+            "enjoy" to "What do you enjoy doing most?",
+            "time" to "What do you spend most of your time on?"
         )
+        var answeredCount = 0
 
-        for ((q, options) in questions) {
+        for ((key, q) in setupQuestions) {
             val qView = android.widget.TextView(this)
             qView.text = q
             qView.setTextColor(0xFFCEBAA2.toInt())
-            qView.textSize = 13f
-            qView.setPadding(16, 12, 16, 4)
+            qView.textSize = 14f
+            qView.setPadding(16, 16, 16, 4)
             researchMessagesContainer.addView(qView)
 
-            val optRow = android.widget.LinearLayout(this)
-            optRow.orientation = android.widget.LinearLayout.HORIZONTAL
-            val scroll = android.widget.HorizontalScrollView(this)
-            scroll.addView(optRow)
-            researchMessagesContainer.addView(scroll)
+            val answerRow = android.widget.LinearLayout(this)
+            answerRow.orientation = android.widget.LinearLayout.HORIZONTAL
+            answerRow.setPadding(16, 4, 16, 0)
 
-            for (opt in options) {
-                val btn = android.widget.Button(this)
-                btn.text = opt
-                btn.textSize = 11f
-                btn.setBackgroundColor(0xFF2E5090.toInt())
-                btn.setTextColor(0xFFFFFFFF.toInt())
-                val p = android.widget.LinearLayout.LayoutParams(
-                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-                p.setMargins(8, 0, 8, 0)
-                btn.layoutParams = p
-                btn.setOnClickListener {
-                    researchProfile.put(q, opt)
-                    btn.setBackgroundColor(0xFF4CAF50.toInt())
-                    btn.isEnabled = false
-                    if (researchProfile.length() >= questions.size) {
+            val answerField = android.widget.EditText(this)
+            answerField.hint = "Type your answer..."
+            answerField.setTextColor(0xFFFFFFFF.toInt())
+            answerField.setHintTextColor(0xFF666666.toInt())
+            answerField.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            answerField.layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            answerRow.addView(answerField)
+
+            val doneBtn = android.widget.Button(this)
+            doneBtn.text = "→"
+            doneBtn.setBackgroundColor(0xFF2E5090.toInt())
+            doneBtn.setTextColor(0xFFFFFFFF.toInt())
+            doneBtn.setOnClickListener {
+                val answer = answerField.text.toString().trim()
+                if (answer.isNotEmpty()) {
+                    researchProfile.put(key, answer)
+                    answerField.isEnabled = false
+                    doneBtn.isEnabled = false
+                    doneBtn.setBackgroundColor(0xFF4CAF50.toInt())
+                    answeredCount++
+                    if (answeredCount >= setupQuestions.size) {
                         researchProfileSet = true
                         prefs.edit().putString("research_profile", researchProfile.toString()).apply()
-                        addResearchMessage("GAMA Research", "Got it. Now, what's your question for?", false)
+                        addResearchMessage("GAMA Research", "Got it. Now ask your question and I'll ask what it's for.", false)
                         showPurposeSelector(pendingResearchQuestion)
                     }
                 }
-                optRow.addView(btn)
             }
+            answerRow.addView(doneBtn)
+            researchMessagesContainer.addView(answerRow)
         }
         researchScrollView.post { researchScrollView.fullScroll(android.view.View.FOCUS_DOWN) }
     }
