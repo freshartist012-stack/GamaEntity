@@ -552,7 +552,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
             return
         }
         addResearchMessage("You", text, true)
-        showPurposeSelector(text)
+        executeResearchQuery(text, "")
     }
 
     private fun showPurposeSelector(question: String) {
@@ -606,7 +606,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         if (!researchSystemPromptAdded) {
             researchMessages.put(JSONObject().apply {
                 put("role", "system")
-                put("content", buildResearchSystemPrompt(purpose))
+                put("content", buildResearchSystemPrompt())
             })
             researchSystemPromptAdded = true
         }
@@ -649,7 +649,11 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                                 put("role", "assistant")
                                 put("content", reply)
                             })
-                            addResearchMessage("GAMA Research", reply, false)
+                            if (reply.contains("COLUMN:")) {
+                                renderColumn(reply)
+                            } else {
+                                addResearchMessage("GAMA Research", reply, false)
+                            }
                         }
                     } catch (e: Exception) {
                         addResearchMessage("GAMA Research", "Error. Try again.", false)
@@ -659,6 +663,116 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 }
             }
         })
+    }
+
+    private fun renderColumn(reply: String) {
+        val columnSection = reply.substringAfter("COLUMN:").trim()
+        val preText = reply.substringBefore("COLUMN:").trim()
+        if (preText.isNotEmpty()) addResearchMessage("GAMA Research", preText, false)
+
+        val container = android.widget.LinearLayout(this)
+        container.orientation = android.widget.LinearLayout.VERTICAL
+        container.setBackgroundColor(0xFF1A1A2E.toInt())
+        container.setPadding(24, 20, 24, 20)
+
+        val answers = mutableMapOf<String, String>()
+        val questions = columnSection.split("
+").filter { it.startsWith("Q") && it.contains(":") }
+
+        for (qLine in questions) {
+            val parts = qLine.substringAfter(":").split("|")
+            if (parts.isEmpty()) continue
+            val questionText = parts[0].trim()
+            val options = parts.drop(1).map { it.trim() }
+
+            val qView = android.widget.TextView(this)
+            qView.text = questionText
+            qView.setTextColor(0xFFCEBAA2.toInt())
+            qView.textSize = 13f
+            qView.setPadding(0, 8, 0, 8)
+            container.addView(qView)
+
+            if (options.isEmpty() || options.first() == "FREE_TEXT") {
+                val field = android.widget.EditText(this)
+                field.hint = "Type your answer..."
+                field.setTextColor(0xFFFFFFFF.toInt())
+                field.setHintTextColor(0xFF666666.toInt())
+                field.setBackgroundColor(0xFF2A2A4E.toInt())
+                field.setPadding(12, 8, 12, 8)
+                container.addView(field)
+                answers[questionText] = ""
+                field.addTextChangedListener(object : android.text.TextWatcher {
+                    override fun afterTextChanged(s: android.text.Editable?) { answers[questionText] = s.toString() }
+                    override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
+                    override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
+                })
+            } else {
+                val optRow = android.widget.LinearLayout(this)
+                optRow.orientation = android.widget.LinearLayout.HORIZONTAL
+                val scroll = android.widget.HorizontalScrollView(this)
+                scroll.addView(optRow)
+                container.addView(scroll)
+
+                var otherField: android.widget.EditText? = null
+
+                for (opt in options) {
+                    val btn = android.widget.Button(this)
+                    btn.text = opt
+                    btn.textSize = 11f
+                    btn.setBackgroundColor(0xFF2E5090.toInt())
+                    btn.setTextColor(0xFFFFFFFF.toInt())
+                    val p = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    )
+                    p.setMargins(0, 0, 8, 0)
+                    btn.layoutParams = p
+                    btn.setOnClickListener {
+                        if (opt == "Other") {
+                            if (otherField == null) {
+                                otherField = android.widget.EditText(this)
+                                otherField!!.hint = "Type your answer..."
+                                otherField!!.setTextColor(0xFFFFFFFF.toInt())
+                                otherField!!.setHintTextColor(0xFF666666.toInt())
+                                otherField!!.setBackgroundColor(0xFF2A2A4E.toInt())
+                                otherField!!.setPadding(12, 8, 12, 8)
+                                container.addView(otherField)
+                                otherField!!.addTextChangedListener(object : android.text.TextWatcher {
+                                    override fun afterTextChanged(s: android.text.Editable?) { answers[questionText] = s.toString() }
+                                    override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
+                                    override fun onTextChanged(s: CharSequence?, st: Int, b: Int, c: Int) {}
+                                })
+                            }
+                        } else {
+                            answers[questionText] = opt
+                            btn.setBackgroundColor(0xFF4CAF50.toInt())
+                        }
+                    }
+                    optRow.addView(btn)
+                }
+            }
+        }
+
+        val submitBtn = android.widget.Button(this)
+        submitBtn.text = "Submit"
+        submitBtn.setBackgroundColor(0xFFCEBAA2.toInt())
+        submitBtn.setTextColor(0xFF000000.toInt())
+        val submitParams = android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        submitParams.setMargins(0, 16, 0, 0)
+        submitBtn.layoutParams = submitParams
+        submitBtn.setOnClickListener {
+            val answerText = answers.entries.joinToString("
+") { "${it.key}: ${it.value}" }
+            researchMessagesContainer.removeView(container)
+            addResearchMessage("You", answerText, true)
+            executeResearchQuery(answerText, "")
+        }
+        container.addView(submitBtn)
+        researchMessagesContainer.addView(container)
+        researchScrollView.post { researchScrollView.fullScroll(android.view.View.FOCUS_DOWN) }
     }
 
     private fun showResearchTyping(show: Boolean) {
@@ -699,6 +813,19 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         }
 
         return """You are GAMA Research. User: $userName. $profileContext
+You have a COLUMN tool. Use it when you need specific information to answer well.
+COLUMN format (max 3 questions):
+COLUMN:
+Q1:Your question here?|Option A|Option B|Option C|Other
+Q2:Another question?|FREE_TEXT
+Q3:Third question?|Yes|No|Other
+Rules for COLUMN:
+- Only use it when the answer genuinely depends on the user's specific situation
+- Simple factual questions do not need COLUMN
+- Always include Other as last option when giving options
+- FREE_TEXT when any answer is possible
+- Casual greetings never trigger COLUMN
+
 STRICT RULES:
 - Follow the FORMAT exactly. Do not add extra sections.
 - Never write more than what the format asks for.
