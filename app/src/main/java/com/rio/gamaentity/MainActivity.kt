@@ -764,8 +764,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         submitParams.setMargins(0, 16, 0, 0)
         submitBtn.layoutParams = submitParams
         submitBtn.setOnClickListener {
-            val answerText = answers.entries.joinToString("
-") { "${it.key}: ${it.value}" }
+            val answerText = answers.entries.joinToString("\n") { "${it.key}: ${it.value}" }
             researchMessagesContainer.removeView(container)
             addResearchMessage("You", answerText, true)
             executeResearchQuery(answerText, "")
