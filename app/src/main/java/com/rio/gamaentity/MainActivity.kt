@@ -676,8 +676,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         container.setPadding(24, 20, 24, 20)
 
         val answers = mutableMapOf<String, String>()
-        val questions = columnSection.split("
-").filter { it.startsWith("Q") && it.contains(":") }
+        val questions = columnSection.split("\n").filter { it.startsWith("Q") && it.contains(":") }
 
         for (qLine in questions) {
             val parts = qLine.substringAfter(":").split("|")
