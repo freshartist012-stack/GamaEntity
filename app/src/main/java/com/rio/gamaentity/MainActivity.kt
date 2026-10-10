@@ -608,7 +608,6 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 .build()
             val response = client.newCall(request).execute()
             val html = response.body?.string() ?: ""
-            // Extract readable text from HTML
             var text = html
                 .replace(Regex("<script[^>]*>[\s\S]*?</script>"), "")
                 .replace(Regex("<style[^>]*>[\s\S]*?</style>"), "")
@@ -616,9 +615,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 .replace(Regex("\s+"), " ")
                 .trim()
             text.take(2000)
-        } catch (e: Exception) {
-            ""
-        }
+        } catch (e: Exception) { "" }
     }
 
     private fun buildSearchUrl(query: String): String {
@@ -628,9 +625,8 @@ When writing emails write only the email content. Never add notes, disclaimers, 
 
     private fun extractSearchResults(html: String): List<String> {
         val results = mutableListOf<String>()
-        val linkPattern = Regex("href="(https?://[^"]+)"")
-        val matches = linkPattern.findAll(html).toList()
-        for (match in matches) {
+        val pattern = "href="(https?://[^"]+)"".toRegex()
+        for (match in pattern.findAll(html)) {
             val url = match.groupValues[1]
             if (!url.contains("duckduckgo") && !url.contains("javascript") && results.size < 3) {
                 results.add(url)
@@ -645,23 +641,16 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 val searchQuery = if (context.isNotEmpty()) "$question $context" else question
                 val searchHtml = fetchWebContent(buildSearchUrl(searchQuery))
                 val urls = extractSearchResults(searchHtml)
-
-                val scrapedContent = StringBuilder()
+                val scraped = StringBuilder()
                 for (url in urls) {
-                    val content = fetchWebContent(url)
-                    if (content.isNotEmpty()) {
-                        scrapedContent.append("Source: $url
-")
-                        scrapedContent.append(content)
-                        scrapedContent.append("
-
-")
+                    val pageContent = fetchWebContent(url)
+                    if (pageContent.isNotEmpty()) {
+                        scraped.append("Source: $url\n")
+                        scraped.append(pageContent)
+                        scraped.append("\n\n")
                     }
                 }
-
-                runOnUiThread {
-                    callback(scrapedContent.toString().take(4000))
-                }
+                runOnUiThread { callback(scraped.toString().take(4000)) }
             } catch (e: Exception) {
                 runOnUiThread { callback("") }
             }
