@@ -600,6 +600,74 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         }
     }
 
+    private fun fetchWebContent(url: String): String {
+        return try {
+            val request = okhttp3.Request.Builder()
+                .url(url)
+                .header("User-Agent", "Mozilla/5.0 (Android) AppleWebKit/537.36")
+                .build()
+            val response = client.newCall(request).execute()
+            val html = response.body?.string() ?: ""
+            // Extract readable text from HTML
+            var text = html
+                .replace(Regex("<script[^>]*>[\s\S]*?</script>"), "")
+                .replace(Regex("<style[^>]*>[\s\S]*?</style>"), "")
+                .replace(Regex("<[^>]+>"), " ")
+                .replace(Regex("\s+"), " ")
+                .trim()
+            text.take(2000)
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
+    private fun buildSearchUrl(query: String): String {
+        val encoded = android.net.Uri.encode(query)
+        return "https://html.duckduckgo.com/html/?q=$encoded"
+    }
+
+    private fun extractSearchResults(html: String): List<String> {
+        val results = mutableListOf<String>()
+        val linkPattern = Regex("href="(https?://[^"]+)"")
+        val matches = linkPattern.findAll(html).toList()
+        for (match in matches) {
+            val url = match.groupValues[1]
+            if (!url.contains("duckduckgo") && !url.contains("javascript") && results.size < 3) {
+                results.add(url)
+            }
+        }
+        return results
+    }
+
+    private fun performResearchWithScraping(question: String, context: String, callback: (String) -> Unit) {
+        Thread {
+            try {
+                val searchQuery = if (context.isNotEmpty()) "$question $context" else question
+                val searchHtml = fetchWebContent(buildSearchUrl(searchQuery))
+                val urls = extractSearchResults(searchHtml)
+
+                val scrapedContent = StringBuilder()
+                for (url in urls) {
+                    val content = fetchWebContent(url)
+                    if (content.isNotEmpty()) {
+                        scrapedContent.append("Source: $url
+")
+                        scrapedContent.append(content)
+                        scrapedContent.append("
+
+")
+                    }
+                }
+
+                runOnUiThread {
+                    callback(scrapedContent.toString().take(4000))
+                }
+            } catch (e: Exception) {
+                runOnUiThread { callback("") }
+            }
+        }.start()
+    }
+
     private fun executeResearchQuery(question: String, purpose: String) {
         sendButton.isEnabled = false
         showResearchTyping(true)
@@ -614,55 +682,76 @@ When writing emails write only the email content. Never add notes, disclaimers, 
             put("role", "user")
             put("content", question)
         })
-        val body = JSONObject().apply {
-            put("model", "openai/gpt-oss-120b")
-            put("messages", researchMessages)
-            put("max_tokens", 2000)
-            put("tool_choice", "none")
-        }
-        val request = okhttp3.Request.Builder()
-            .url("https://api.groq.com/openai/v1/chat/completions")
-            .addHeader("Authorization", "Bearer $groqKey")
-            .addHeader("Content-Type", "application/json")
-            .post(body.toString().toRequestBody("application/json".toMediaType()))
-            .build()
-        client.newCall(request).enqueue(object : okhttp3.Callback {
-            override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {
-                runOnUiThread {
-                    addResearchMessage("GAMA Research", "Connection error. Try again.", false)
-                    sendButton.isEnabled = true
-                    showResearchTyping(false)
-                }
+        // First scrape relevant web content then send to AI
+        performResearchWithScraping(question, purpose) { scrapedContent ->
+            val messageWithContext = if (scrapedContent.isNotEmpty()) {
+                "$question
+
+WEB RESEARCH FOUND:
+$scrapedContent"
+            } else {
+                question
             }
-            override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) {
-                val b = response.body?.string()
-                runOnUiThread {
-                    try {
-                        val json = JSONObject(b ?: "")
-                        if (json.has("error")) {
-                            if (researchMessages.length() > 0) researchMessages.remove(researchMessages.length() - 1)
-                            addResearchMessage("GAMA Research", "Try again in a moment.", false)
-                        } else {
-                            val reply = json.getJSONArray("choices").getJSONObject(0)
-                                .getJSONObject("message").getString("content").trim()
-                            researchMessages.put(JSONObject().apply {
-                                put("role", "assistant")
-                                put("content", reply)
-                            })
-                            if (reply.contains("COLUMN:")) {
-                                renderColumn(reply)
-                            } else {
-                                addResearchMessage("GAMA Research", reply, false)
-                            }
-                        }
-                    } catch (e: Exception) {
-                        addResearchMessage("GAMA Research", "Error. Try again.", false)
+
+            // Update last user message with scraped content
+            if (researchMessages.length() > 0) {
+                researchMessages.remove(researchMessages.length() - 1)
+            }
+            researchMessages.put(JSONObject().apply {
+                put("role", "user")
+                put("content", messageWithContext)
+            })
+
+            val body = JSONObject().apply {
+                put("model", "openai/gpt-oss-120b")
+                put("messages", researchMessages)
+                put("max_tokens", 2000)
+                put("tool_choice", "none")
+            }
+            val request = okhttp3.Request.Builder()
+                .url("https://api.groq.com/openai/v1/chat/completions")
+                .addHeader("Authorization", "Bearer $groqKey")
+                .addHeader("Content-Type", "application/json")
+                .post(body.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+            client.newCall(request).enqueue(object : okhttp3.Callback {
+                override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {
+                    runOnUiThread {
+                        addResearchMessage("GAMA Research", "Connection error. Try again.", false)
+                        sendButton.isEnabled = true
+                        showResearchTyping(false)
                     }
-                    sendButton.isEnabled = true
-                    showResearchTyping(false)
                 }
-            }
-        })
+                override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) {
+                    val b = response.body?.string()
+                    runOnUiThread {
+                        try {
+                            val json = JSONObject(b ?: "")
+                            if (json.has("error")) {
+                                if (researchMessages.length() > 0) researchMessages.remove(researchMessages.length() - 1)
+                                addResearchMessage("GAMA Research", "Try again in a moment.", false)
+                            } else {
+                                val reply = json.getJSONArray("choices").getJSONObject(0)
+                                    .getJSONObject("message").getString("content").trim()
+                                researchMessages.put(JSONObject().apply {
+                                    put("role", "assistant")
+                                    put("content", reply)
+                                })
+                                if (reply.contains("COLUMN:")) {
+                                    renderColumn(reply)
+                                } else {
+                                    addResearchMessage("GAMA Research", reply, false)
+                                }
+                            }
+                        } catch (e: Exception) {
+                            addResearchMessage("GAMA Research", "Error. Try again.", false)
+                        }
+                        sendButton.isEnabled = true
+                        showResearchTyping(false)
+                    }
+                }
+            })
+        }
     }
 
     private fun renderColumn(reply: String) {
