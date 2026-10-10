@@ -609,10 +609,10 @@ When writing emails write only the email content. Never add notes, disclaimers, 
             val response = client.newCall(request).execute()
             val html = response.body?.string() ?: ""
             var text = html
-                .replace(Regex("<script[^>]*>[\s\S]*?</script>"), "")
-                .replace(Regex("<style[^>]*>[\s\S]*?</style>"), "")
+                .replace(Regex("<script[^>]*>[\\s\\S]*?</script>"), "")
+                .replace(Regex("<style[^>]*>[\\s\\S]*?</style>"), "")
                 .replace(Regex("<[^>]+>"), " ")
-                .replace(Regex("\s+"), " ")
+                .replace(Regex("\\s+"), " ")
                 .trim()
             text.take(2000)
         } catch (e: Exception) { "" }
@@ -625,7 +625,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
 
     private fun extractSearchResults(html: String): List<String> {
         val results = mutableListOf<String>()
-        val pattern = "href="(https?://[^"]+)"".toRegex()
+        val pattern = "href=\"(https?://[^\"]+)\"".toRegex()
         for (match in pattern.findAll(html)) {
             val url = match.groupValues[1]
             if (!url.contains("duckduckgo") && !url.contains("javascript") && results.size < 3) {
@@ -676,7 +676,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
             val messageWithContext = if (scrapedContent.isNotEmpty()) {
                 "$question
 
-WEB RESEARCH FOUND:
+                "$question\n\nWEB RESEARCH FOUND:\n$scrapedContent"
 $scrapedContent"
             } else {
                 question
