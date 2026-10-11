@@ -618,38 +618,34 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         } catch (e: Exception) { "" }
     }
 
-    private fun buildSearchUrl(query: String): String {
-        val encoded = android.net.Uri.encode(query)
-        return "https://html.duckduckgo.com/html/?q=$encoded"
-    }
-
-    private fun extractSearchResults(html: String): List<String> {
-        val results = mutableListOf<String>()
-        val pattern = "href=\"(https?://[^\"]+)\"".toRegex()
-        for (match in pattern.findAll(html)) {
-            val url = match.groupValues[1]
-            if (!url.contains("duckduckgo") && !url.contains("javascript") && results.size < 3) {
-                results.add(url)
-            }
-        }
-        return results
-    }
-
     private fun performResearchWithScraping(question: String, context: String, callback: (String) -> Unit) {
         Thread {
             try {
-                val searchQuery = if (context.isNotEmpty()) "$question $context" else question
-                val searchHtml = fetchWebContent(buildSearchUrl(searchQuery))
-                val urls = extractSearchResults(searchHtml)
                 val scraped = StringBuilder()
-                for (url in urls) {
-                    val pageContent = fetchWebContent(url)
-                    if (pageContent.isNotEmpty()) {
-                        scraped.append("Source: $url\n")
-                        scraped.append(pageContent)
+                val encoded = android.net.Uri.encode(question)
+
+                // Try Wikipedia
+                val wikiUrl = "https://en.wikipedia.org/w/api.php?action=query&prop=extracts&exintro&explaintext&titles=${encoded}&format=json"
+                val wikiContent = fetchWebContent(wikiUrl)
+                if (wikiContent.isNotEmpty() && wikiContent.contains("extract")) {
+                    scraped.append("Source: Wikipedia\n")
+                    val extract = wikiContent.substringAfter(""extract":"").substringBefore(""").take(1500)
+                    scraped.append(extract.replace("\\n", " "))
+                    scraped.append("\n\n")
+                }
+
+                // Try DuckDuckGo instant answers
+                val ddgUrl = "https://api.duckduckgo.com/?q=${encoded}&format=json&no_html=1"
+                val ddgContent = fetchWebContent(ddgUrl)
+                if (ddgContent.isNotEmpty() && ddgContent.contains("AbstractText")) {
+                    val abstract = ddgContent.substringAfter(""AbstractText":"").substringBefore(""").take(1000)
+                    if (abstract.isNotEmpty()) {
+                        scraped.append("Source: DuckDuckGo\n")
+                        scraped.append(abstract)
                         scraped.append("\n\n")
                     }
                 }
+
                 runOnUiThread { callback(scraped.toString().take(4000)) }
             } catch (e: Exception) {
                 runOnUiThread { callback("") }
@@ -855,20 +851,68 @@ When writing emails write only the email content. Never add notes, disclaimers, 
     }
 
     private fun addResearchMessage(sender: String, text: String, isUser: Boolean) {
+        val wrapper = android.widget.LinearLayout(this)
+        wrapper.orientation = android.widget.LinearLayout.VERTICAL
+        val wrapperParams = android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        wrapperParams.setMargins(0, 4, 0, 4)
+        wrapper.layoutParams = wrapperParams
+
         val bubble = android.widget.TextView(this)
-        bubble.text = if (isUser) text else "🔍 $text"
+        bubble.text = if (isUser) text else text
         bubble.textSize = 15f
         bubble.setPadding(24, 16, 24, 16)
+        bubble.isTextSelectable = true
         bubble.setTextColor(if (isUser) 0xFFFFFFFF.toInt() else resources.getColor(R.color.text_primary, null))
         bubble.setBackgroundColor(if (isUser) resources.getColor(R.color.primary, null) else resources.getColor(R.color.surface, null))
-        val params = android.widget.LinearLayout.LayoutParams(
+        val bubbleParams = android.widget.LinearLayout.LayoutParams(
             android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
             android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
         )
-        params.setMargins(if (isUser) 80 else 0, 8, if (isUser) 0 else 80, 8)
-        params.gravity = if (isUser) android.view.Gravity.END else android.view.Gravity.START
-        bubble.layoutParams = params
-        researchMessagesContainer.addView(bubble)
+        bubbleParams.setMargins(if (isUser) 80 else 0, 0, if (isUser) 0 else 80, 0)
+        bubbleParams.gravity = if (isUser) android.view.Gravity.END else android.view.Gravity.START
+        bubble.layoutParams = bubbleParams
+        wrapper.addView(bubble)
+
+        if (!isUser) {
+            val actionRow = android.widget.LinearLayout(this)
+            actionRow.orientation = android.widget.LinearLayout.HORIZONTAL
+            actionRow.setPadding(4, 4, 4, 4)
+
+            val copyBtn = android.widget.TextView(this)
+            copyBtn.text = "📋 Copy"
+            copyBtn.textSize = 11f
+            copyBtn.setTextColor(0xFF888888.toInt())
+            copyBtn.setPadding(8, 4, 16, 4)
+            copyBtn.setOnClickListener {
+                val clipboard = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("GAMA Research", text))
+                android.widget.Toast.makeText(this, "Copied", android.widget.Toast.LENGTH_SHORT).show()
+            }
+            actionRow.addView(copyBtn)
+
+            val readBtn = android.widget.TextView(this)
+            readBtn.text = "🔊 Read"
+            readBtn.textSize = 11f
+            readBtn.setTextColor(0xFF888888.toInt())
+            readBtn.setPadding(8, 4, 16, 4)
+            readBtn.setOnClickListener {
+                if (ttsReady) tts.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, null)
+            }
+            actionRow.addView(readBtn)
+
+            val actionParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            actionParams.gravity = android.view.Gravity.START
+            actionRow.layoutParams = actionParams
+            wrapper.addView(actionRow)
+        }
+
+        researchMessagesContainer.addView(wrapper)
         researchScrollView.post { researchScrollView.fullScroll(android.view.View.FOCUS_DOWN) }
     }
 
@@ -889,6 +933,8 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         return """You are GAMA Research — a serious, focused research assistant for $userName. $profileContext
 
 YOUR JOB: Help this specific person with their specific situation. Generic answers are a failure. Your job is to understand what they actually need and deliver exactly that.
+
+INTERNET ACCESS: You have real-time web access. When the user asks something, web content will be provided to you labeled as WEB RESEARCH FOUND. Use this content to give current specific answers. Always mention sources from the web content you received.
 
 BEFORE YOU ANSWER ANY QUESTION — ask yourself:
 1. Does my answer depend on knowing more about their situation?
