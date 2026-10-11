@@ -629,7 +629,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 val wikiContent = fetchWebContent(wikiUrl)
                 if (wikiContent.isNotEmpty() && wikiContent.contains("extract")) {
                     scraped.append("Source: Wikipedia\n")
-                    val extract = wikiContent.substringAfter(""extract":"").substringBefore(""").take(1500)
+                    val extract = wikiContent.substringAfter("\"extract\":\"").substringBefore("\"").take(1500)
                     scraped.append(extract.replace("\\n", " "))
                     scraped.append("\n\n")
                 }
@@ -638,7 +638,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                 val ddgUrl = "https://api.duckduckgo.com/?q=${encoded}&format=json&no_html=1"
                 val ddgContent = fetchWebContent(ddgUrl)
                 if (ddgContent.isNotEmpty() && ddgContent.contains("AbstractText")) {
-                    val abstract = ddgContent.substringAfter(""AbstractText":"").substringBefore(""").take(1000)
+                    val abstract = ddgContent.substringAfter("\"AbstractText\":\"").substringBefore("\"").take(1000)
                     if (abstract.isNotEmpty()) {
                         scraped.append("Source: DuckDuckGo\n")
                         scraped.append(abstract)
@@ -1021,8 +1021,8 @@ $style"""
                     if (answeredCount >= setupQuestions.size) {
                         researchProfileSet = true
                         prefs.edit().putString("research_profile", researchProfile.toString()).apply()
-                        addResearchMessage("GAMA Research", "Got it. Now ask your question and I'll ask what it's for.", false)
-                        showPurposeSelector(pendingResearchQuestion)
+                        addResearchMessage("GAMA Research", "Got it. Ask your question and I'll help from there.", false)
+                        sendResearchMessage(pendingResearchQuestion)
                     }
                 }
             }
