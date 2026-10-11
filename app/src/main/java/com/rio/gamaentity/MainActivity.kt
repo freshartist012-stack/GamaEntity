@@ -674,10 +674,8 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         // First scrape relevant web content then send to AI
         performResearchWithScraping(question, purpose) { scrapedContent ->
             val messageWithContext = if (scrapedContent.isNotEmpty()) {
-                "$question
 
                 "$question\n\nWEB RESEARCH FOUND:\n$scrapedContent"
-$scrapedContent"
             } else {
                 question
             }
