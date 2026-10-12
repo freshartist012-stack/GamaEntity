@@ -864,7 +864,6 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         bubble.text = if (isUser) text else text
         bubble.textSize = 15f
         bubble.setPadding(24, 16, 24, 16)
-        bubble.isTextSelectable = true
         bubble.setTextColor(if (isUser) 0xFFFFFFFF.toInt() else resources.getColor(R.color.text_primary, null))
         bubble.setBackgroundColor(if (isUser) resources.getColor(R.color.primary, null) else resources.getColor(R.color.surface, null))
         val bubbleParams = android.widget.LinearLayout.LayoutParams(
