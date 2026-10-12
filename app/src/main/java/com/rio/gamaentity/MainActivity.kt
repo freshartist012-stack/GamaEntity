@@ -488,7 +488,11 @@ Always respond in $langName. Be natural, first person, concise. Never fabricate.
 
 $contactsSection
 NEVER output action commands for greetings like "hi" or "hello".
-When user explicitly asks for an action, ALWAYS output the command immediately without describing what you will do. Command format:
+When user explicitly asks for an action, ALWAYS output the command immediately without describing what you will do.
+When you provide content the user should copy — a message draft, template, address, code, script — wrap it as:
+CLIPBOARD:
+[the content to copy]
+Use CLIPBOARD when the user needs to copy and paste something elsewhere. Command format:
 WHATSAPP:NUMBER:MESSAGE
 WHATSAPP_CALL:NUMBER
 CALL:NUMBER
@@ -866,6 +870,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         bubble.setPadding(24, 16, 24, 16)
         bubble.setTextColor(if (isUser) 0xFFFFFFFF.toInt() else resources.getColor(R.color.text_primary, null))
         bubble.setBackgroundColor(if (isUser) resources.getColor(R.color.primary, null) else resources.getColor(R.color.surface, null))
+        bubble.setTextIsSelectable(true)
         val bubbleParams = android.widget.LinearLayout.LayoutParams(
             android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
             android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
@@ -1103,7 +1108,14 @@ $style"""
         msg.put("role", "assistant")
         msg.put("content", reply)
         messages.put(msg)
-        addMessage("GAMA", reply, false)
+        if (reply.contains("CLIPBOARD:")) {
+            val before = reply.substringBefore("CLIPBOARD:").trim()
+            val clipContent = reply.substringAfter("CLIPBOARD:").trim()
+            if (before.isNotEmpty()) addMessage("GAMA", before, false)
+            renderClipboardBlock(clipContent, messagesContainer)
+        } else {
+            addMessage("GAMA", reply, false)
+        }
         handleAction(reply)
         saveCurrentChat()
         if (voiceModeActive) {
@@ -1944,6 +1956,53 @@ $style"""
                 }
             } catch (e: Exception) {}
         }
+    }
+
+    private fun renderClipboardBlock(text: String, container: android.widget.LinearLayout) {
+        val block = android.widget.LinearLayout(this)
+        block.orientation = android.widget.LinearLayout.VERTICAL
+        block.setBackgroundColor(0xFF1A1A2E.toInt())
+        block.setPadding(16, 12, 16, 12)
+        val blockParams = android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+        blockParams.setMargins(0, 4, 0, 4)
+        block.layoutParams = blockParams
+
+        val copyHeader = android.widget.LinearLayout(this)
+        copyHeader.orientation = android.widget.LinearLayout.HORIZONTAL
+
+        val label = android.widget.TextView(this)
+        label.text = "📋 Tap to copy"
+        label.setTextColor(0xFF888888.toInt())
+        label.textSize = 11f
+        label.layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        copyHeader.addView(label)
+
+        val copyBtn = android.widget.TextView(this)
+        copyBtn.text = "Copy"
+        copyBtn.setTextColor(0xFFCEBAA2.toInt())
+        copyBtn.textSize = 11f
+        copyHeader.addView(copyBtn)
+        block.addView(copyHeader)
+
+        val contentView = android.widget.TextView(this)
+        contentView.text = text
+        contentView.setTextColor(0xFFCCCCCC.toInt())
+        contentView.textSize = 14f
+        contentView.setPadding(0, 8, 0, 0)
+        contentView.setTextIsSelectable(true)
+        block.addView(contentView)
+
+        val copyAction = {
+            val clipboard = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("GAMA", text))
+            android.widget.Toast.makeText(this, "Copied", android.widget.Toast.LENGTH_SHORT).show()
+        }
+        copyBtn.setOnClickListener { copyAction() }
+        block.setOnClickListener { copyAction() }
+        container.addView(block)
     }
 
     private fun addMessage(sender: String, text: String, isUser: Boolean) {
