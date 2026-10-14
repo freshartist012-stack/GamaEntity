@@ -115,6 +115,7 @@ class MainActivity : AppCompatActivity() {
         toolbarTitle = findViewById(R.id.toolbarTitle)
         attachButton = findViewById(R.id.attachButton)
 
+        initMemoryFiles()
         val savedProfile = prefs.getString("research_profile", "") ?: ""
         if (savedProfile.isNotEmpty()) {
             try {
@@ -348,6 +349,37 @@ class MainActivity : AppCompatActivity() {
             drawerLayout.closeDrawers()
         }
         drawerContent.addView(langBtn)
+
+        val exportBtn = Button(this)
+        exportBtn.text = "Export Memory"
+        exportBtn.setBackgroundColor(0xFF2E5090.toInt())
+        exportBtn.setTextColor(0xFFFFFFFF.toInt())
+        exportBtn.layoutParams = btnParams
+        exportBtn.setOnClickListener {
+            val memory = readMemory()
+            val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmm", java.util.Locale.getDefault()).format(java.util.Date())
+            val fileName = "gama_memory_$timestamp.json"
+            val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+            val exportFile = java.io.File(downloadsDir, fileName)
+            exportFile.writeText(memory.toString())
+            android.widget.Toast.makeText(this, "Memory exported to Downloads/$fileName", android.widget.Toast.LENGTH_LONG).show()
+            drawerLayout.closeDrawers()
+        }
+        drawerContent.addView(exportBtn)
+
+        val importBtn = Button(this)
+        importBtn.text = "Import Memory"
+        importBtn.setBackgroundColor(0xFF2E5090.toInt())
+        importBtn.setTextColor(0xFFFFFFFF.toInt())
+        importBtn.layoutParams = btnParams
+        importBtn.setOnClickListener {
+            val intent = android.content.Intent(android.content.Intent.ACTION_GET_CONTENT).apply {
+                type = "application/json"
+            }
+            startActivityForResult(intent, 201)
+            drawerLayout.closeDrawers()
+        }
+        drawerContent.addView(importBtn)
 
         val keysBtn = Button(this)
         keysBtn.text = "API Keys"
@@ -2012,6 +2044,55 @@ $style"""
         container.addView(block)
     }
 
+    private fun getMemoryFile(): java.io.File {
+        val dir = filesDir
+        return java.io.File(dir, "gama_memory.json")
+    }
+
+    private fun initMemoryFiles() {
+        val file = getMemoryFile()
+        if (!file.exists()) {
+            val initial = org.json.JSONObject().apply {
+                put("version", 1)
+                put("created", System.currentTimeMillis())
+                put("last_updated", System.currentTimeMillis())
+                put("continuity", org.json.JSONObject().apply {
+                    put("who_the_user_is", "")
+                    put("in_progress", org.json.JSONArray())
+                    put("what_matters", org.json.JSONArray())
+                    put("notes_for_next", "")
+                })
+                put("states", org.json.JSONArray())
+                put("grand_index", org.json.JSONObject().apply {
+                    put("topics", org.json.JSONArray())
+                    put("archived", org.json.JSONArray())
+                })
+            }
+            file.writeText(initial.toString())
+            android.util.Log.d("GAMA_MEMORY", "Memory file created")
+        }
+    }
+
+    private fun readMemory(): org.json.JSONObject {
+        return try {
+            org.json.JSONObject(getMemoryFile().readText())
+        } catch (e: Exception) {
+            org.json.JSONObject()
+        }
+    }
+
+    private fun writeMemory(memory: org.json.JSONObject) {
+        try {
+            memory.put("last_updated", System.currentTimeMillis())
+            getMemoryFile().writeText(memory.toString())
+        } catch (e: Exception) {}
+    }
+
+    private fun getTimestamp(): String {
+        val sdf = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+        return sdf.format(java.util.Date())
+    }
+
     private fun addMessage(sender: String, text: String, isUser: Boolean) {
         val wrapper = LinearLayout(this)
         wrapper.orientation = LinearLayout.VERTICAL
@@ -2038,6 +2119,15 @@ $style"""
         }
         messageView.layoutParams = msgParams
         wrapper.addView(messageView)
+
+        val timeView = TextView(this)
+        timeView.text = getTimestamp()
+        timeView.textSize = 10f
+        timeView.setTextColor(resources.getColor(R.color.text_hint, null))
+        val timeParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+        timeParams.gravity = if (isUser) Gravity.END else Gravity.START
+        timeView.layoutParams = timeParams
+        wrapper.addView(timeView)
 
         val buttonsRow = LinearLayout(this)
         buttonsRow.orientation = LinearLayout.HORIZONTAL
@@ -2130,6 +2220,19 @@ $style"""
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == 201 && resultCode == android.app.Activity.RESULT_OK) {
+            val uri = data?.data ?: return
+            try {
+                val text = contentResolver.openInputStream(uri)?.bufferedReader()?.readText() ?: ""
+                val imported = org.json.JSONObject(text)
+                writeMemory(imported)
+                android.widget.Toast.makeText(this, "Memory imported successfully", android.widget.Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                android.widget.Toast.makeText(this, "Invalid memory file", android.widget.Toast.LENGTH_SHORT).show()
+            }
+            return
+        }
+
         if (requestCode == 200 && resultCode == android.app.Activity.RESULT_OK) {
             val uri = data?.data ?: return
             val mimeType = contentResolver.getType(uri) ?: ""
