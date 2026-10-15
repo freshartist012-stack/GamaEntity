@@ -952,6 +952,111 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         researchScrollView.post { researchScrollView.fullScroll(android.view.View.FOCUS_DOWN) }
     }
 
+    private fun updateContinuityFromSession(lastReply: String) {
+        if (groqKey.isEmpty()) return
+        val sessionText = buildString {
+            for (i in 0 until researchMessages.length()) {
+                val msg = researchMessages.getJSONObject(i)
+                if (msg.optString("role") != "system") {
+                    append("${msg.optString("role")}: ${msg.optString("content").take(200)}
+")
+                }
+            }
+        }.take(3000)
+
+        if (sessionText.isEmpty()) return
+
+        val currentMemory = readMemory()
+        val currentContinuity = currentMemory.optJSONObject("continuity")?.toString() ?: "{}"
+
+        val extractPrompt = """You are a memory consolidator. Read this research session and update the continuity memory.
+
+CURRENT CONTINUITY:
+$currentContinuity
+
+SESSION:
+$sessionText
+
+Output ONLY a JSON object with these exact fields:
+{
+  "who_the_user_is": "one sentence about who they are based on what you learned",
+  "in_progress": ["item1", "item2"],
+  "what_matters": ["thing1", "thing2"],
+  "notes_for_next": "one sentence of what would help next session"
+}
+Keep it short. Append to existing knowledge, don't erase it. If nothing new was learned, return the current values unchanged."""
+
+        val body = org.json.JSONObject().apply {
+            put("model", "openai/gpt-oss-120b")
+            put("max_tokens", 500)
+            put("tool_choice", "none")
+            put("messages", org.json.JSONArray().apply {
+                put(org.json.JSONObject().apply {
+                    put("role", "user")
+                    put("content", extractPrompt)
+                })
+            })
+        }
+
+        Thread {
+            try {
+                val request = okhttp3.Request.Builder()
+                    .url("https://api.groq.com/openai/v1/chat/completions")
+                    .addHeader("Authorization", "Bearer $groqKey")
+                    .addHeader("Content-Type", "application/json")
+                    .post(body.toString().toRequestBody("application/json".toMediaType()))
+                    .build()
+                val response = client.newCall(request).execute()
+                val responseText = response.body?.string() ?: ""
+                val reply = org.json.JSONObject(responseText)
+                    .getJSONArray("choices").getJSONObject(0)
+                    .getJSONObject("message").getString("content").trim()
+
+                val cleanReply = reply
+                    .replace("```json", "")
+                    .replace("```", "")
+                    .trim()
+
+                val newContinuity = org.json.JSONObject(cleanReply)
+                val memory = readMemory()
+                memory.put("continuity", newContinuity)
+                writeMemory(memory)
+                android.util.Log.d("GAMA_MEMORY", "Continuity updated")
+            } catch (e: Exception) {
+                android.util.Log.e("GAMA_MEMORY", "Continuity update failed: ${e.message}")
+            }
+        }.start()
+    }
+
+    private fun getContinuityContext(): String {
+        return try {
+            val memory = readMemory()
+            val continuity = memory.optJSONObject("continuity") ?: return ""
+            val sb = StringBuilder()
+            val whoIs = continuity.optString("who_the_user_is", "")
+            if (whoIs.isNotEmpty()) sb.append("About the user: $whoIs
+")
+            val inProgress = continuity.optJSONArray("in_progress")
+            if (inProgress != null && inProgress.length() > 0) {
+                sb.append("Currently working on: ")
+                for (i in 0 until inProgress.length()) sb.append("${inProgress.getString(i)}; ")
+                sb.append("
+")
+            }
+            val matters = continuity.optJSONArray("what_matters")
+            if (matters != null && matters.length() > 0) {
+                sb.append("What matters to them: ")
+                for (i in 0 until matters.length()) sb.append("${matters.getString(i)}; ")
+                sb.append("
+")
+            }
+            val notes = continuity.optString("notes_for_next", "")
+            if (notes.isNotEmpty()) sb.append("Notes from last session: $notes
+")
+            sb.toString()
+        } catch (e: Exception) { "" }
+    }
+
     private fun buildResearchSystemPrompt(purpose: String = "simple"): String {
         val enjoys = if (researchProfile.has("enjoy")) researchProfile.getString("enjoy") else ""
         val spends = if (researchProfile.has("time")) researchProfile.getString("time") else ""
@@ -968,6 +1073,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
 
         return """You are GAMA Research — a serious, focused research assistant for $userName. $profileContext
 
+${getContinuityContext()}
 YOUR JOB: Help this specific person with their specific situation. Generic answers are a failure. Your job is to understand what they actually need and deliver exactly that.
 
 INTERNET ACCESS: You have real-time web access. Web content will be provided labeled as WEB RESEARCH FOUND. 
