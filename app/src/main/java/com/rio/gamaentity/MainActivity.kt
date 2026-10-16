@@ -958,8 +958,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
             for (i in 0 until researchMessages.length()) {
                 val msg = researchMessages.getJSONObject(i)
                 if (msg.optString("role") != "system") {
-                    append("${msg.optString("role")}: ${msg.optString("content").take(200)}
-")
+                    append("${msg.optString(\"role\")}: ${msg.optString(\"content\").take(200)}\n")
                 }
             }
         }.take(3000)
@@ -1035,24 +1034,20 @@ Keep it short. Append to existing knowledge, don't erase it. If nothing new was 
             val sb = StringBuilder()
             val whoIs = continuity.optString("who_the_user_is", "")
             if (whoIs.isNotEmpty()) sb.append("About the user: $whoIs
-")
             val inProgress = continuity.optJSONArray("in_progress")
             if (inProgress != null && inProgress.length() > 0) {
                 sb.append("Currently working on: ")
                 for (i in 0 until inProgress.length()) sb.append("${inProgress.getString(i)}; ")
                 sb.append("
-")
             }
             val matters = continuity.optJSONArray("what_matters")
             if (matters != null && matters.length() > 0) {
                 sb.append("What matters to them: ")
                 for (i in 0 until matters.length()) sb.append("${matters.getString(i)}; ")
                 sb.append("
-")
             }
             val notes = continuity.optString("notes_for_next", "")
             if (notes.isNotEmpty()) sb.append("Notes from last session: $notes
-")
             sb.toString()
         } catch (e: Exception) { "" }
     }
