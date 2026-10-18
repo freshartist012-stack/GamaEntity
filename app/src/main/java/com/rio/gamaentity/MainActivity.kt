@@ -958,7 +958,9 @@ When writing emails write only the email content. Never add notes, disclaimers, 
             for (i in 0 until researchMessages.length()) {
                 val msg = researchMessages.getJSONObject(i)
                 if (msg.optString("role") != "system") {
-                    append("${msg.optString(\"role\")}: ${msg.optString(\"content\").take(200)}\n")
+                    val role = msg.optString("role")
+                    val msgContent = msg.optString("content").take(200)
+                    append("$role: $msgContent\n")
                 }
             }
         }.take(3000)
