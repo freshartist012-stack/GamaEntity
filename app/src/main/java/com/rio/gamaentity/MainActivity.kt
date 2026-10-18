@@ -968,22 +968,11 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         val currentMemory = readMemory()
         val currentContinuity = currentMemory.optJSONObject("continuity")?.toString() ?: "{}"
 
-        val extractPrompt = """You are a memory consolidator. Read this research session and update the continuity memory.
-
-CURRENT CONTINUITY:
-$currentContinuity
-
-SESSION:
-$sessionText
-
-Output ONLY a JSON object with these exact fields:
-{
-  "who_the_user_is": "one sentence about who they are based on what you learned",
-  "in_progress": ["item1", "item2"],
-  "what_matters": ["thing1", "thing2"],
-  "notes_for_next": "one sentence of what would help next session"
-}
-Keep it short. Append to existing knowledge, don't erase it. If nothing new was learned, return the current values unchanged."""
+        val extractPrompt = "You are a memory consolidator. Read this research session and update the continuity memory.\n\n" +
+            "CURRENT CONTINUITY:\n$currentContinuity\n\n" +
+            "SESSION:\n$sessionText\n\n" +
+            "Output ONLY a valid JSON object with these exact keys: who_the_user_is (string), in_progress (array), what_matters (array), notes_for_next (string).\n" +
+            "Keep values short. Append to existing knowledge. If nothing new was learned return current values unchanged."
 
         val body = org.json.JSONObject().apply {
             put("model", "openai/gpt-oss-120b")
