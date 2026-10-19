@@ -1024,21 +1024,19 @@ When writing emails write only the email content. Never add notes, disclaimers, 
             val continuity = memory.optJSONObject("continuity") ?: return ""
             val sb = StringBuilder()
             val whoIs = continuity.optString("who_the_user_is", "")
-            if (whoIs.isNotEmpty()) sb.append("About the user: $whoIs
+            if (whoIs.isNotEmpty()) sb.append("About the user: $whoIs\n")
             val inProgress = continuity.optJSONArray("in_progress")
             if (inProgress != null && inProgress.length() > 0) {
                 sb.append("Currently working on: ")
                 for (i in 0 until inProgress.length()) sb.append("${inProgress.getString(i)}; ")
-                sb.append("
             }
             val matters = continuity.optJSONArray("what_matters")
             if (matters != null && matters.length() > 0) {
                 sb.append("What matters to them: ")
                 for (i in 0 until matters.length()) sb.append("${matters.getString(i)}; ")
-                sb.append("
             }
             val notes = continuity.optString("notes_for_next", "")
-            if (notes.isNotEmpty()) sb.append("Notes from last session: $notes
+            if (notes.isNotEmpty()) sb.append("Notes from last session: $notes\n")
             sb.toString()
         } catch (e: Exception) { "" }
     }
