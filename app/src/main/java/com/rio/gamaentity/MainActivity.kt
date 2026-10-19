@@ -135,10 +135,10 @@ class MainActivity : AppCompatActivity() {
                 micButton.visibility = android.view.View.GONE
                 attachButton.visibility = android.view.View.VISIBLE
                 waveformView.visibility = android.view.View.GONE
-                if (voiceModeActive) {
-                    voiceModeActive = false
-                }
+                if (voiceModeActive) voiceModeActive = false
+                if (currentStateId.isEmpty()) startNewState()
             } else {
+                endCurrentState()
                 scrollView.visibility = android.view.View.VISIBLE
                 researchScrollView.visibility = android.view.View.GONE
                 modeToggleBtn.text = "Research"
@@ -381,6 +381,34 @@ class MainActivity : AppCompatActivity() {
         }
         drawerContent.addView(importBtn)
 
+        val newStateBtn = Button(this)
+        newStateBtn.text = "New Research State"
+        newStateBtn.setBackgroundColor(0xFF1A6B3C.toInt())
+        newStateBtn.setTextColor(0xFFFFFFFF.toInt())
+        newStateBtn.layoutParams = btnParams
+        newStateBtn.setOnClickListener {
+            if (isResearchMode) {
+                endCurrentState()
+                startNewState()
+                addResearchMessage("GAMA Research", "New research state started.", false)
+            } else {
+                android.widget.Toast.makeText(this, "Switch to Research Mode first", android.widget.Toast.LENGTH_SHORT).show()
+            }
+            drawerLayout.closeDrawers()
+        }
+        drawerContent.addView(newStateBtn)
+
+        val stateHistoryBtn = Button(this)
+        stateHistoryBtn.text = "State History"
+        stateHistoryBtn.setBackgroundColor(0xFF2E5090.toInt())
+        stateHistoryBtn.setTextColor(0xFFFFFFFF.toInt())
+        stateHistoryBtn.layoutParams = btnParams
+        stateHistoryBtn.setOnClickListener {
+            showStateHistory()
+            drawerLayout.closeDrawers()
+        }
+        drawerContent.addView(stateHistoryBtn)
+
         val keysBtn = Button(this)
         keysBtn.text = "API Keys"
         keysBtn.setBackgroundColor(0xFF2E5090.toInt())
@@ -547,6 +575,8 @@ When writing emails write only the email content. Never add notes, disclaimers, 
 
     private var researchMessages = JSONArray()
     private var researchSystemPromptAdded = false
+    private var currentStateId = ""
+    private var currentStateStartTime = 0L
     private var pendingAttachmentText = ""
     private var researchProfileSet = false
     private var researchProfile = org.json.JSONObject()
@@ -2137,6 +2167,139 @@ $style"""
     private fun getMemoryFile(): java.io.File {
         val dir = filesDir
         return java.io.File(dir, "gama_memory.json")
+    }
+
+    private fun showStateHistory() {
+        val memory = readMemory()
+        val states = memory.optJSONArray("states")
+        if (states == null || states.length() == 0) {
+            android.widget.Toast.makeText(this, "No research states yet", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val layout = android.widget.LinearLayout(this)
+        layout.orientation = android.widget.LinearLayout.VERTICAL
+        layout.setPadding(32, 32, 32, 32)
+
+        val scroll = android.widget.ScrollView(this)
+        val inner = android.widget.LinearLayout(this)
+        inner.orientation = android.widget.LinearLayout.VERTICAL
+        scroll.addView(inner)
+        layout.addView(scroll)
+
+        val sdf = java.text.SimpleDateFormat("MMM dd, HH:mm", java.util.Locale.getDefault())
+
+        for (i in states.length() - 1 downTo 0) {
+            val state = states.getJSONObject(i)
+            val time = sdf.format(java.util.Date(state.optLong("started")))
+            val summary = state.optString("summary", "No summary available")
+
+            val card = android.widget.LinearLayout(this)
+            card.orientation = android.widget.LinearLayout.VERTICAL
+            card.setBackgroundColor(0xFF1A1A2E.toInt())
+            card.setPadding(24, 16, 24, 16)
+            val cardParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            cardParams.setMargins(0, 0, 0, 12)
+            card.layoutParams = cardParams
+
+            val timeView = android.widget.TextView(this)
+            timeView.text = time
+            timeView.textSize = 11f
+            timeView.setTextColor(0xFF888888.toInt())
+            card.addView(timeView)
+
+            val summaryView = android.widget.TextView(this)
+            summaryView.text = summary
+            summaryView.textSize = 14f
+            summaryView.setTextColor(0xFFEEEEEE.toInt())
+            summaryView.setPadding(0, 8, 0, 0)
+            card.addView(summaryView)
+
+            inner.addView(card)
+        }
+
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Research States")
+            .setView(layout)
+            .setPositiveButton("Close") { d, _ -> d.dismiss() }
+            .show()
+    }
+
+    private fun startNewState() {
+        currentStateId = "state_${System.currentTimeMillis()}"
+        currentStateStartTime = System.currentTimeMillis()
+        researchMessages = JSONArray()
+        researchSystemPromptAdded = false
+        researchMessagesContainer.removeAllViews()
+        researchProfile = try {
+            val saved = prefs.getString("research_profile", "") ?: ""
+            if (saved.isNotEmpty()) org.json.JSONObject(saved) else org.json.JSONObject()
+        } catch (e: Exception) { org.json.JSONObject() }
+        researchProfileSet = researchProfile.length() > 0
+    }
+
+    private fun saveStateToGrandMemory(summary: String) {
+        try {
+            val memory = readMemory()
+            val states = memory.optJSONArray("states") ?: JSONArray()
+            val state = org.json.JSONObject().apply {
+                put("id", currentStateId)
+                put("started", currentStateStartTime)
+                put("ended", System.currentTimeMillis())
+                put("summary", summary)
+                put("message_count", researchMessages.length())
+            }
+            states.put(state)
+            memory.put("states", states)
+            writeMemory(memory)
+        } catch (e: Exception) {}
+    }
+
+    private fun endCurrentState() {
+        if (currentStateId.isEmpty() || researchMessages.length() == 0) return
+        val sessionText = buildString {
+            for (i in 0 until researchMessages.length()) {
+                val msg = researchMessages.getJSONObject(i)
+                if (msg.optString("role") != "system") {
+                    val role = msg.optString("role")
+                    val text = msg.optString("content").take(150)
+                    append("$role: $text
+")
+                }
+            }
+        }.take(2000)
+
+        val body = org.json.JSONObject().apply {
+            put("model", "openai/gpt-oss-120b")
+            put("max_tokens", 200)
+            put("tool_choice", "none")
+            put("messages", JSONArray().apply {
+                put(org.json.JSONObject().apply {
+                    put("role", "user")
+                    put("content", "Summarize this research session in 2-3 sentences. What was discussed and what was found?\n\n$sessionText")
+                })
+            })
+        }
+
+        Thread {
+            try {
+                val request = okhttp3.Request.Builder()
+                    .url("https://api.groq.com/openai/v1/chat/completions")
+                    .addHeader("Authorization", "Bearer $groqKey")
+                    .addHeader("Content-Type", "application/json")
+                    .post(body.toString().toRequestBody("application/json".toMediaType()))
+                    .build()
+                val response = client.newCall(request).execute()
+                val responseText = response.body?.string() ?: ""
+                val summary = org.json.JSONObject(responseText)
+                    .getJSONArray("choices").getJSONObject(0)
+                    .getJSONObject("message").getString("content").trim()
+                saveStateToGrandMemory(summary)
+            } catch (e: Exception) {}
+        }.start()
     }
 
     private fun initMemoryFiles() {
