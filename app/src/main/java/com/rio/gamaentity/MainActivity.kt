@@ -2266,8 +2266,7 @@ $style"""
                 if (msg.optString("role") != "system") {
                     val role = msg.optString("role")
                     val text = msg.optString("content").take(150)
-                    append("$role: $text
-")
+                    append("$role: $text\n")
                 }
             }
         }.take(2000)
