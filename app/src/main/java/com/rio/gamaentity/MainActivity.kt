@@ -124,6 +124,7 @@ class MainActivity : AppCompatActivity() {
             } catch (e: Exception) {}
         }
 
+        refreshDrawer()
         modeToggleBtn.setOnClickListener {
             isResearchMode = !isResearchMode
             if (isResearchMode) {
@@ -147,6 +148,7 @@ class MainActivity : AppCompatActivity() {
                 micButton.visibility = android.view.View.VISIBLE
                 attachButton.visibility = android.view.View.GONE
             }
+            refreshDrawer()
         }
 
         attachButton.setOnClickListener {
@@ -283,14 +285,6 @@ class MainActivity : AppCompatActivity() {
         val btnParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
         btnParams.setMargins(16, 8, 16, 8)
 
-        val newChatBtn = Button(this)
-        newChatBtn.text = "New Chat"
-        newChatBtn.setBackgroundColor(0xFF4CAF50.toInt())
-        newChatBtn.setTextColor(0xFFFFFFFF.toInt())
-        newChatBtn.layoutParams = btnParams
-        newChatBtn.setOnClickListener { startNewChat() }
-        drawerContent.addView(newChatBtn)
-
         val switchBtn = Button(this)
         switchBtn.text = "Switch Model (${if (modelType == "groq") "Groq" else "GAMA"})"
         switchBtn.setBackgroundColor(0xFF333366.toInt())
@@ -303,133 +297,6 @@ class MainActivity : AppCompatActivity() {
         }
         drawerContent.addView(switchBtn)
 
-
-        val overlayBtn = Button(this)
-        overlayBtn.text = if (android.provider.Settings.canDrawOverlays(this)) "✓ Overlay Permission Granted" else "Enable Overlay Permission"
-        overlayBtn.setBackgroundColor(if (android.provider.Settings.canDrawOverlays(this)) 0xFF2E7D32.toInt() else 0xFF880000.toInt())
-        overlayBtn.setTextColor(0xFFFFFFFF.toInt())
-        overlayBtn.layoutParams = btnParams
-        overlayBtn.setOnClickListener {
-            if (!android.provider.Settings.canDrawOverlays(this)) {
-                startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
-                    data = android.net.Uri.parse("package:$packageName")
-                })
-            }
-            drawerLayout.closeDrawers()
-        }
-        drawerContent.addView(overlayBtn)
-
-        val langBtn = Button(this)
-        val savedLang = prefs.getString("app_language", "en-ZA") ?: "en-ZA"
-        val langNames = mapOf("en-ZA" to "English (SA)", "zu-ZA" to "Zulu", "af-ZA" to "Afrikaans", "st-ZA" to "Sotho", "xh-ZA" to "Xhosa")
-        langBtn.text = "Language: ${langNames[savedLang] ?: "English"}"
-        langBtn.setBackgroundColor(0xFF2E5090.toInt())
-        langBtn.setTextColor(0xFFFFFFFF.toInt())
-        langBtn.layoutParams = btnParams
-        langBtn.setOnClickListener {
-            val langs = langNames.keys.toTypedArray()
-            val names = langNames.values.toTypedArray()
-            AlertDialog.Builder(this)
-                .setTitle("Select Language")
-                .setItems(names) { _, which ->
-                    val selected = langs[which]
-                    prefs.edit().putString("app_language", selected).apply()
-                    langBtn.text = "Language: ${names[which]}"
-                    // Update TTS language immediately
-                    if (ttsReady) {
-                        val parts = selected.split("-")
-                        val locale = if (parts.size == 2) java.util.Locale(parts[0], parts[1]) else java.util.Locale.getDefault()
-                        tts.language = locale
-                    }
-                    // Reset system prompt so it uses new language
-                    systemPromptAdded = false
-                    while (messages.length() > 0) messages.remove(0)
-                }
-                .show()
-            drawerLayout.closeDrawers()
-        }
-        drawerContent.addView(langBtn)
-
-        val exportBtn = Button(this)
-        exportBtn.text = "Export Memory"
-        exportBtn.setBackgroundColor(0xFF2E5090.toInt())
-        exportBtn.setTextColor(0xFFFFFFFF.toInt())
-        exportBtn.layoutParams = btnParams
-        exportBtn.setOnClickListener {
-            val memory = readMemory()
-            val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmm", java.util.Locale.getDefault()).format(java.util.Date())
-            val fileName = "gama_memory_$timestamp.json"
-            val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
-            val exportFile = java.io.File(downloadsDir, fileName)
-            exportFile.writeText(memory.toString())
-            android.widget.Toast.makeText(this, "Memory exported to Downloads/$fileName", android.widget.Toast.LENGTH_LONG).show()
-            drawerLayout.closeDrawers()
-        }
-        drawerContent.addView(exportBtn)
-
-        val importBtn = Button(this)
-        importBtn.text = "Import Memory"
-        importBtn.setBackgroundColor(0xFF2E5090.toInt())
-        importBtn.setTextColor(0xFFFFFFFF.toInt())
-        importBtn.layoutParams = btnParams
-        importBtn.setOnClickListener {
-            val intent = android.content.Intent(android.content.Intent.ACTION_GET_CONTENT).apply {
-                type = "application/json"
-            }
-            startActivityForResult(intent, 201)
-            drawerLayout.closeDrawers()
-        }
-        drawerContent.addView(importBtn)
-
-        val newStateBtn = Button(this)
-        newStateBtn.text = "New Research State"
-        newStateBtn.setBackgroundColor(0xFF1A6B3C.toInt())
-        newStateBtn.setTextColor(0xFFFFFFFF.toInt())
-        newStateBtn.layoutParams = btnParams
-        newStateBtn.setOnClickListener {
-            if (isResearchMode) {
-                endCurrentState()
-                startNewState()
-                addResearchMessage("GAMA Research", "New research state started.", false)
-            } else {
-                android.widget.Toast.makeText(this, "Switch to Research Mode first", android.widget.Toast.LENGTH_SHORT).show()
-            }
-            drawerLayout.closeDrawers()
-        }
-        drawerContent.addView(newStateBtn)
-
-        val stateHistoryBtn = Button(this)
-        stateHistoryBtn.text = "State History"
-        stateHistoryBtn.setBackgroundColor(0xFF2E5090.toInt())
-        stateHistoryBtn.setTextColor(0xFFFFFFFF.toInt())
-        stateHistoryBtn.layoutParams = btnParams
-        stateHistoryBtn.setOnClickListener {
-            showStateHistory()
-            drawerLayout.closeDrawers()
-        }
-        drawerContent.addView(stateHistoryBtn)
-
-        val keysBtn = Button(this)
-        keysBtn.text = "API Keys"
-        keysBtn.setBackgroundColor(0xFF2E5090.toInt())
-        keysBtn.setTextColor(0xFFFFFFFF.toInt())
-        keysBtn.layoutParams = btnParams
-        keysBtn.setOnClickListener {
-            startActivity(Intent(this, KeysActivity::class.java))
-            drawerLayout.closeDrawers()
-        }
-        drawerContent.addView(keysBtn)
-
-        val aboutBtn = Button(this)
-        aboutBtn.text = "About"
-        aboutBtn.setBackgroundColor(0xFF222244.toInt())
-        aboutBtn.setTextColor(0xFFFFFFFF.toInt())
-        aboutBtn.layoutParams = btnParams
-        aboutBtn.setOnClickListener {
-            startActivity(Intent(this, AboutActivity::class.java))
-            drawerLayout.closeDrawers()
-        }
-        drawerContent.addView(aboutBtn)
 
         val chatsDir = File(filesDir, "chats")
         if (chatsDir.exists()) {
@@ -2169,6 +2036,112 @@ $style"""
         return java.io.File(dir, "gama_memory.json")
     }
 
+    private fun refreshDrawer() {
+        drawerContent.removeAllViews()
+        val btnParams = android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { setMargins(0, 4, 0, 4) }
+
+        fun makeBtn(label: String, color: Int, action: () -> Unit): Button {
+            return Button(this).apply {
+                text = label
+                setBackgroundColor(color)
+                setTextColor(0xFFFFFFFF.toInt())
+                layoutParams = btnParams
+                setOnClickListener { action(); drawerLayout.closeDrawers() }
+            }
+        }
+
+        if (!isResearchMode) {
+            // Chat mode buttons
+            drawerContent.addView(makeBtn("New Chat", 0xFF2E5090.toInt()) { startNewChat() })
+            // Chat history
+            loadChatHistoryToDrawer(btnParams)
+        } else {
+            // Research mode buttons
+            drawerContent.addView(makeBtn("New Research State", 0xFF1A6B3C.toInt()) {
+                endCurrentState()
+                startNewState()
+                addResearchMessage("GAMA Research", "New research state started.", false)
+            })
+            drawerContent.addView(makeBtn("State History", 0xFF2E5090.toInt()) { showStateHistory() })
+            drawerContent.addView(makeBtn("Export Memory", 0xFF2E5090.toInt()) { exportMemory() })
+            drawerContent.addView(makeBtn("Import Memory", 0xFF2E5090.toInt()) {
+                val intent = android.content.Intent(android.content.Intent.ACTION_GET_CONTENT).apply { type = "application/json" }
+                startActivityForResult(intent, 201)
+            })
+        }
+
+        // Universal buttons
+        drawerContent.addView(makeBtn("API Keys", 0xFF2E5090.toInt()) {
+            startActivity(android.content.Intent(this, KeysActivity::class.java))
+        })
+        drawerContent.addView(makeBtn("Language: ${getLanguageName()}", 0xFF2E5090.toInt()) { showLanguagePicker() })
+        drawerContent.addView(makeBtn("Overlay Permission", 0xFF880000.toInt()) {
+            if (!android.provider.Settings.canDrawOverlays(this)) {
+                startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+                    data = android.net.Uri.parse("package:$packageName")
+                })
+            }
+        })
+        drawerContent.addView(makeBtn("About", 0xFF2E5090.toInt()) {
+            startActivity(android.content.Intent(this, AboutActivity::class.java))
+        })
+    }
+
+    private fun showLanguagePicker() {
+        val langs = arrayOf("en-ZA", "zu-ZA", "af-ZA", "st-ZA", "xh-ZA")
+        val names = arrayOf("English (SA)", "Zulu", "Afrikaans", "Sotho", "Xhosa")
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Select Language")
+            .setItems(names) { _, which ->
+                val selected = langs[which]
+                prefs.edit().putString("app_language", selected).apply()
+                if (ttsReady) {
+                    val parts = selected.split("-")
+                    val locale = if (parts.size == 2) java.util.Locale(parts[0], parts[1]) else java.util.Locale.getDefault()
+                    tts.language = locale
+                }
+                systemPromptAdded = false
+                while (messages.length() > 0) messages.remove(0)
+                refreshDrawer()
+            }
+            .show()
+    }
+
+    private fun exportMemory() {
+        val memory = readMemory()
+        val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HHmm", java.util.Locale.getDefault()).format(java.util.Date())
+        val fileName = "gama_memory_$timestamp.json"
+        val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+        val exportFile = java.io.File(downloadsDir, fileName)
+        exportFile.writeText(memory.toString())
+        android.widget.Toast.makeText(this, "Memory exported to Downloads/$fileName", android.widget.Toast.LENGTH_LONG).show()
+    }
+
+    private fun loadChatHistoryToDrawer(btnParams: android.widget.LinearLayout.LayoutParams) {
+        val chatsDir = java.io.File(filesDir, "chats")
+        if (!chatsDir.exists()) return
+        val files = chatsDir.listFiles()?.filter { it.name.endsWith(".json") && !it.name.startsWith("notif_") }
+            ?.sortedByDescending { it.lastModified() } ?: return
+        for (file in files.take(10)) {
+            val name = file.nameWithoutExtension.replace("_", " ")
+            val btn = Button(this).apply {
+                text = name
+                textSize = 12f
+                setBackgroundColor(0xFF1A1A2E.toInt())
+                setTextColor(0xFFCEBAA2.toInt())
+                layoutParams = btnParams
+                setOnClickListener {
+                    loadChat(file.name)
+                    drawerLayout.closeDrawers()
+                }
+            }
+            drawerContent.addView(btn)
+        }
+    }
+
     private fun showStateHistory() {
         val memory = readMemory()
         val states = memory.optJSONArray("states")
@@ -2193,6 +2166,7 @@ $style"""
             val state = states.getJSONObject(i)
             val time = sdf.format(java.util.Date(state.optLong("started")))
             val summary = state.optString("summary", "No summary available")
+            val msgCount = state.optInt("message_count", 0)
 
             val card = android.widget.LinearLayout(this)
             card.orientation = android.widget.LinearLayout.VERTICAL
@@ -2206,7 +2180,7 @@ $style"""
             card.layoutParams = cardParams
 
             val timeView = android.widget.TextView(this)
-            timeView.text = time
+            timeView.text = "$time · $msgCount messages"
             timeView.textSize = 11f
             timeView.setTextColor(0xFF888888.toInt())
             card.addView(timeView)
@@ -2216,6 +2190,7 @@ $style"""
             summaryView.textSize = 14f
             summaryView.setTextColor(0xFFEEEEEE.toInt())
             summaryView.setPadding(0, 8, 0, 0)
+            summaryView.setTextIsSelectable(true)
             card.addView(summaryView)
 
             inner.addView(card)
