@@ -2134,7 +2134,7 @@ $style"""
                 setTextColor(0xFFCEBAA2.toInt())
                 layoutParams = btnParams
                 setOnClickListener {
-                    loadChat(file.name)
+                    loadChat(file)
                     drawerLayout.closeDrawers()
                 }
             }
