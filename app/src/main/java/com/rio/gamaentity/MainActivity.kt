@@ -275,44 +275,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadChatHistory() {
         drawerContent.removeAllViews()
-        val title = TextView(this)
-        title.text = "Chats"
-        title.textSize = 18f
-        title.setPadding(24, 24, 24, 16)
-        title.setTextColor(0xFFFFFFFF.toInt())
-        drawerContent.addView(title)
-
-        val btnParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-        btnParams.setMargins(16, 8, 16, 8)
-
-        val switchBtn = Button(this)
-        switchBtn.text = "Switch Model (${if (modelType == "groq") "Groq" else "GAMA"})"
-        switchBtn.setBackgroundColor(0xFF333366.toInt())
-        switchBtn.setTextColor(0xFFFFFFFF.toInt())
-        switchBtn.layoutParams = btnParams
-        switchBtn.setOnClickListener {
-            prefs.edit().remove("model_type").remove("groq_key").apply()
-            startActivity(Intent(this, OnboardingActivity::class.java))
-            finish()
-        }
-        drawerContent.addView(switchBtn)
-
-
-        val chatsDir = File(filesDir, "chats")
-        if (chatsDir.exists()) {
-            chatsDir.listFiles()?.sortedByDescending { it.lastModified() }?.forEach { file ->
-                try {
-                    val arr = JSONArray(file.readText())
-                    val preview = if (arr.length() > 0) arr.getJSONObject(0).getString("content").take(40) else file.name
-                    val chatBtn = TextView(this)
-                    chatBtn.text = preview
-                    chatBtn.setPadding(24, 16, 24, 16)
-                    chatBtn.setTextColor(0xFFCCCCCC.toInt())
-                    chatBtn.textSize = 14f
-                    chatBtn.setOnClickListener { loadChat(file) }
-                    drawerContent.addView(chatBtn)
-                } catch (e: Exception) {}
-            }
         }
     }
 
@@ -2074,6 +2036,18 @@ $style"""
         }
 
         // Universal buttons
+        val drawerTitle = android.widget.TextView(this)
+        drawerTitle.text = "GAMA Entity"
+        drawerTitle.textSize = 18f
+        drawerTitle.setTextColor(0xFFFFFFFF.toInt())
+        drawerTitle.setPadding(16, 24, 16, 16)
+        drawerContent.addView(drawerTitle)
+
+        drawerContent.addView(makeBtn("Switch Model (${if (modelType == "groq") "Groq" else "GAMA"})", 0xFF333366.toInt()) {
+            prefs.edit().remove("model_type").remove("groq_key").apply()
+            startActivity(android.content.Intent(this, OnboardingActivity::class.java))
+            finish()
+        })
         drawerContent.addView(makeBtn("API Keys", 0xFF2E5090.toInt()) {
             startActivity(android.content.Intent(this, KeysActivity::class.java))
         })
