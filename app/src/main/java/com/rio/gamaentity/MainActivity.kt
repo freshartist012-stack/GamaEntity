@@ -273,10 +273,6 @@ class MainActivity : AppCompatActivity() {
         addMessage("GAMA", "Hi $userName! How can I help?", false)
     }
 
-    private fun loadChatHistory() {
-        drawerContent.removeAllViews()
-        }
-    }
 
     private fun loadChat(file: File) {
         try {
