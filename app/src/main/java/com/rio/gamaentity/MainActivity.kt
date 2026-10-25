@@ -105,7 +105,6 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<ImageButton>(R.id.menuButton).setOnClickListener {
             drawerLayout.openDrawer(Gravity.LEFT)
-            loadChatHistory()
         }
 
         typingIndicator = findViewById(R.id.typingIndicator)

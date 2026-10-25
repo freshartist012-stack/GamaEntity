@@ -11,7 +11,7 @@ android {
         applicationId "com.rio.gamaentity"
         minSdk 26
         targetSdk 36
-        versionCode 178
+        versionCode 179
         versionName "1.0"
     }
 
@@ -33,7 +33,7 @@ android {
 }
 
 dependencies {
-    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.core:core-ktx:1.12.00'
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.11.0'
     implementation 'androidx.drawerlayout:drawerlayout:1.2.0'
