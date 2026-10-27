@@ -19,14 +19,25 @@ jobs:
         run: ./gradlew clean
       - name: Decode keystore
         run: echo "${{ secrets.KEYSTORE }}" | base64 -d > keystore.jks
-      - name: Build Signed AAB
-        run: ./gradlew bundleRelease
+      - name: Build Free AAB
+        run: ./gradlew bundleFreeRelease
           -Pandroid.injected.signing.store.file=$GITHUB_WORKSPACE/keystore.jks
           -Pandroid.injected.signing.store.password=${{ secrets.STORE_PASSWORD }}
           -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }}
           -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
-      - name: Upload AAB
+      - name: Build Pro APK
+        run: ./gradlew assembleProRelease
+          -Pandroid.injected.signing.store.file=$GITHUB_WORKSPACE/keystore.jks
+          -Pandroid.injected.signing.store.password=${{ secrets.STORE_PASSWORD }}
+          -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }}
+          -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+      - name: Upload Free AAB
         uses: actions/upload-artifact@v4
         with:
-          name: GamaEntity-release
-          path: app/build/outputs/bundle/release/app-release.aab
+          name: GamaEntity-free-release
+          path: app/build/outputs/bundle/freeRelease/app-free-release.aab
+      - name: Upload Pro APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: GamaEntity-pro-release
+          path: app/build/outputs/apk/proRelease/app-pro-release.apk

@@ -8,11 +8,25 @@ android {
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.rio.gamaentity"
         minSdk 26
         targetSdk 36
-        versionCode 180
+        versionCode 181
         versionName "1.0"
+    }
+
+    flavorDimensions "version"
+
+    productFlavors {
+        free {
+            dimension "version"
+            applicationId "com.rio.gamaentity"
+            versionNameSuffix "-free"
+        }
+        pro {
+            dimension "version"
+            applicationId "com.rio.gamaentity.pro"
+            versionNameSuffix "-pro"
+        }
     }
 
     buildTypes {
