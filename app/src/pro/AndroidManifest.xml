@@ -13,5 +13,8 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/accessibility_service_config"/>
         </service>
+        <service
+            android:name=".ProOverlayService"
+            android:exported="false"/>
     </application>
 </manifest>

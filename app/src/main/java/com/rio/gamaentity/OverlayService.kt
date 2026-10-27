@@ -34,7 +34,7 @@ class OverlayService : Service() {
     private val messages = JSONArray()
     private var systemPromptAdded = false
     private val handler = Handler(Looper.getMainLooper())
-    private lateinit var responseText: TextView
+    protected lateinit var responseText: TextView
     private lateinit var waveformView: WaveformView
     private lateinit var inputField: EditText
 
@@ -544,6 +544,10 @@ Never use contact names in commands, always use their number.""")
             else -> d
         }
     }
+
+    open fun getSystemPromptExtra(): String = ""
+
+    open fun handleScreenAction(reply: String): Boolean = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
