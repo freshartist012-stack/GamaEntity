@@ -2120,9 +2120,8 @@ $style"""
     private fun showProInstaller() {
         val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("GAMA Pro")
-            .setMessage("GAMA Pro adds screen reading and automation — control any app with your voice.
+            .setMessage("GAMA Pro adds screen reading and automation. Control any app with your voice. Tap Download to get the Pro APK from GitHub.")
 
-Tap Download to get the Pro APK from GitHub.")
             .setPositiveButton("Download & Install") { _, _ -> downloadProApk() }
             .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
             .create()
