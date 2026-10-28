@@ -2057,6 +2057,12 @@ $style"""
         drawerContent.addView(makeBtn("About", 0xFF2E5090.toInt()) {
             startActivity(android.content.Intent(this, AboutActivity::class.java))
         })
+
+        if (BuildConfig.FLAVOR == "free") {
+            drawerContent.addView(makeBtn("⭐ Get Pro Version", 0xFFB8860B.toInt()) {
+                showProInstaller()
+            })
+        }
     }
 
     private fun showLanguagePicker() {
@@ -2109,6 +2115,52 @@ $style"""
             }
             drawerContent.addView(btn)
         }
+    }
+
+    private fun showProInstaller() {
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("GAMA Pro")
+            .setMessage("GAMA Pro adds screen reading and automation — control any app with your voice.
+
+Tap Download to get the Pro APK from GitHub.")
+            .setPositiveButton("Download & Install") { _, _ -> downloadProApk() }
+            .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
+            .create()
+        dialog.show()
+    }
+
+    private fun downloadProApk() {
+        val proUrl = "https://github.com/freshartist012-stack/GamaEntity/releases/latest/download/app-pro-release.apk"
+        android.widget.Toast.makeText(this, "Downloading GAMA Pro...", android.widget.Toast.LENGTH_LONG).show()
+
+        Thread {
+            try {
+                val request = okhttp3.Request.Builder().url(proUrl).build()
+                val response = client.newCall(request).execute()
+                val bytes = response.body?.bytes() ?: return@Thread
+
+                val apkFile = java.io.File(cacheDir, "gama_pro.apk")
+                apkFile.writeBytes(bytes)
+
+                runOnUiThread {
+                    val uri = androidx.core.content.FileProvider.getUriForFile(
+                        this,
+                        "$packageName.provider",
+                        apkFile
+                    )
+                    val installIntent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                        setDataAndType(uri, "application/vnd.android.package-archive")
+                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    startActivity(installIntent)
+                }
+            } catch (e: Exception) {
+                runOnUiThread {
+                    android.widget.Toast.makeText(this, "Download failed. Check your connection.", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+        }.start()
     }
 
     private fun showStateHistory() {
