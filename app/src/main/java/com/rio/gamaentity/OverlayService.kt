@@ -23,7 +23,7 @@ import java.io.IOException
 import java.util.*
 import java.util.concurrent.TimeUnit
 
-class OverlayService : Service() {
+open class OverlayService : Service() {
 
     private var windowManager: WindowManager? = null
     private var overlayView: View? = null
@@ -276,7 +276,7 @@ class OverlayService : Service() {
         }
     }
 
-    private fun startListening() {
+    protected open fun startListening() {
         if (!isActive || !voiceEnabled) return
         handler.post {
             responseText.text = "Listening..."
