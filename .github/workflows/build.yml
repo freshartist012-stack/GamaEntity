@@ -43,3 +43,5 @@ jobs:
         with:
           name: GamaEntity-pro-release
           path: app/build/outputs/apk/proRelease/app-pro-release.apk
+      - name: Find APK
+        run: find app/build/outputs -name "*.apk" -o -name "*.aab" | head -20
