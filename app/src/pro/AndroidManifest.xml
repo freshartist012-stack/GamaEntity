@@ -3,17 +3,23 @@
     xmlns:tools="http://schemas.android.com/tools">
     <application tools:ignore="AllowBackup">
         <activity
-            android:name=".ProMainActivity"
-            android:exported="true">
-            <intent-filter>
+            android:name=".MainActivity"
+            android:exported="false"
+            tools:node="merge">
+            <intent-filter tools:node="remove">
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
         <activity
-            android:name=".MainActivity"
-            android:exported="false"
-            tools:node="remove"/>
+            android:name=".ProMainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.AppCompat.DayNight">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
         <service
             android:name=".GamaAccessibilityService"
             android:exported="true"
