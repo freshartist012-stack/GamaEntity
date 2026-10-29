@@ -2,8 +2,13 @@ package com.rio.gamaentity
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.accessibilityservice.GestureDescription
+import android.graphics.Path
+import android.graphics.Rect
+import android.os.Bundle
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 
 class GamaAccessibilityService : AccessibilityService() {
 
@@ -11,142 +16,125 @@ class GamaAccessibilityService : AccessibilityService() {
         var instance: GamaAccessibilityService? = null
         var isEnabled = false
 
+        private fun targetRoot(): AccessibilityNodeInfo? {
+            val service = instance ?: return null
+            val own = service.packageName
+            var best: AccessibilityNodeInfo? = null
+            for (w in service.windows) {
+                if (w.type != AccessibilityWindowInfo.TYPE_APPLICATION) continue
+                val r = w.root ?: continue
+                if (r.packageName?.toString() == own) continue
+                if (best == null || w.isActive) best = r
+                if (w.isActive) break
+            }
+            return best ?: service.rootInActiveWindow
+        }
+
+        private fun labelOf(n: AccessibilityNodeInfo): String {
+            return (n.text ?: n.contentDescription)?.toString().orEmpty().trim()
+        }
+
+        private fun collect(n: AccessibilityNodeInfo, out: MutableList<AccessibilityNodeInfo>, depth: Int) {
+            if (depth > 25 || out.size >= 60) return
+            if (n.isVisibleToUser && (labelOf(n).isNotEmpty() || n.isClickable)) out.add(n)
+            for (i in 0 until n.childCount) {
+                val c = n.getChild(i) ?: continue
+                collect(c, out, depth + 1)
+            }
+        }
+
+        private fun elements(): List<AccessibilityNodeInfo> {
+            val root = targetRoot() ?: return emptyList()
+            val list = mutableListOf<AccessibilityNodeInfo>()
+            collect(root, list, 0)
+            return list
+        }
+
         fun getUITree(): String {
-            val service = instance ?: return ""
-            val root = service.rootInActiveWindow ?: return ""
-            return buildUITree(root, 0).take(4000)
+            val root = targetRoot() ?: return ""
+            val sb = StringBuilder("App: ${root.packageName}\n")
+            elements().forEachIndexed { i, n ->
+                val cls = n.className?.toString().orEmpty()
+                val type = when {
+                    cls.contains("Edit") -> "INPUT"
+                    cls.contains("Button") -> "BUTTON"
+                    n.isClickable -> "CLICKABLE"
+                    else -> "TEXT"
+                }
+                val label = labelOf(n).ifEmpty { "(unlabeled)" }.take(80)
+                sb.append("${i + 1}. [$type] $label\n")
+            }
+            return sb.toString().take(4000)
         }
 
         fun executeAction(action: String): Boolean {
             val service = instance ?: return false
-            val root = service.rootInActiveWindow ?: return false
-
             return when {
                 action.startsWith("CLICK:") -> {
-                    val target = action.removePrefix("CLICK:").trim()
-                    val index = target.toIntOrNull()
-                    if (index != null) {
-                        clickByIndex(root, index)
-                    } else {
-                        clickByText(root, target)
-                    }
+                    val t = action.removePrefix("CLICK:").trim()
+                    val list = elements()
+                    val idx = t.toIntOrNull()
+                    val node = if (idx != null) list.getOrNull(idx - 1)
+                               else list.firstOrNull { labelOf(it).contains(t, ignoreCase = true) }
+                    if (node == null) false else clickNode(node)
                 }
                 action.startsWith("SCROLL:") -> {
-                    val direction = action.removePrefix("SCROLL:").trim().uppercase()
-                    scrollScreen(root, direction)
+                    val up = action.removePrefix("SCROLL:").trim().uppercase() == "UP"
+                    val act = if (up) AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
+                              else AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
+                    val root = targetRoot()
+                    val sc = if (root == null) null else findScrollable(root)
+                    sc?.performAction(act) ?: false
                 }
                 action.startsWith("TYPE:") -> {
                     val text = action.removePrefix("TYPE:").trim()
-                    typeText(root, text)
+                    val root = targetRoot() ?: return false
+                    val target = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: findEditable(root)
+                    val args = Bundle()
+                    args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+                    target?.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args) ?: false
                 }
-                action == "BACK" -> {
-                    service.performGlobalAction(GLOBAL_ACTION_BACK)
-                    true
-                }
-                action == "HOME" -> {
-                    service.performGlobalAction(GLOBAL_ACTION_HOME)
-                    true
-                }
+                action == "BACK" -> service.performGlobalAction(GLOBAL_ACTION_BACK)
+                action == "HOME" -> service.performGlobalAction(GLOBAL_ACTION_HOME)
                 else -> false
             }
         }
 
-        private fun buildUITree(node: AccessibilityNodeInfo, depth: Int): String {
-            val sb = StringBuilder()
-            val text = node.text?.toString() ?: ""
-            val desc = node.contentDescription?.toString() ?: ""
-            val className = node.className?.toString()?.substringAfterLast(".") ?: ""
-            val isClickable = node.isClickable
-            val label = when {
-                text.isNotEmpty() -> text
-                desc.isNotEmpty() -> desc
-                else -> return buildChildTree(node, depth)
-            }
-            val type = when {
-                className.contains("Button") -> "BUTTON"
-                className.contains("Edit") -> "INPUT"
-                className.contains("Text") && isClickable -> "LINK"
-                className.contains("Text") -> "TEXT"
-                isClickable -> "CLICKABLE"
-                else -> "ELEMENT"
-            }
-            sb.append("[$type] $label\n")
-            sb.append(buildChildTree(node, depth + 1))
-            return sb.toString()
-        }
-
-        private fun buildChildTree(node: AccessibilityNodeInfo, depth: Int): String {
-            if (depth > 5) return ""
-            val sb = StringBuilder()
-            for (i in 0 until node.childCount) {
-                val child = node.getChild(i) ?: continue
-                sb.append(buildUITree(child, depth))
-            }
-            return sb.toString()
-        }
-
-        private fun clickByIndex(root: AccessibilityNodeInfo, index: Int): Boolean {
-            val clickables = mutableListOf<AccessibilityNodeInfo>()
-            collectClickable(root, clickables)
-            val target = clickables.getOrNull(index - 1) ?: return false
-            // Try performAction first, fall back to gesture click
-            if (target.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
-            val bounds = android.graphics.Rect()
-            target.getBoundsInScreen(bounds)
-            val x = bounds.centerX().toFloat()
-            val y = bounds.centerY().toFloat()
-            return gestureClick(x, y)
-        }
-
-        private fun clickByText(root: AccessibilityNodeInfo, text: String): Boolean {
-            val nodes = root.findAccessibilityNodeInfosByText(text)
-            val target = nodes?.firstOrNull() ?: return false
-            if (target.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
-            val bounds = android.graphics.Rect()
-            target.getBoundsInScreen(bounds)
-            return gestureClick(bounds.centerX().toFloat(), bounds.centerY().toFloat())
+        private fun clickNode(node: AccessibilityNodeInfo): Boolean {
+            var cur: AccessibilityNodeInfo? = node
+            while (cur != null && !cur.isClickable) cur = cur.parent
+            if (cur != null && cur.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
+            val b = Rect()
+            node.getBoundsInScreen(b)
+            return gestureClick(b.centerX().toFloat(), b.centerY().toFloat())
         }
 
         fun gestureClick(x: Float, y: Float): Boolean {
             val service = instance ?: return false
-            val path = android.graphics.Path()
+            val path = Path()
             path.moveTo(x, y)
-            val stroke = android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 50)
-            val gesture = android.accessibilityservice.GestureDescription.Builder()
-                .addStroke(stroke)
+            val g = GestureDescription.Builder()
+                .addStroke(GestureDescription.StrokeDescription(path, 0, 60))
                 .build()
-            service.dispatchGesture(gesture, null, null)
-            return true
+            return service.dispatchGesture(g, null, null)
         }
 
-        private fun collectClickable(node: AccessibilityNodeInfo, list: MutableList<AccessibilityNodeInfo>) {
-            if (node.isClickable) list.add(node)
-            for (i in 0 until node.childCount) {
-                val child = node.getChild(i) ?: continue
-                collectClickable(child, list)
-            }
-        }
-
-        private fun scrollScreen(root: AccessibilityNodeInfo, direction: String): Boolean {
-            val action = if (direction == "UP") AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
-                        else AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
-            return findScrollable(root)?.performAction(action) ?: false
-        }
-
-        private fun findScrollable(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
-            if (node.isScrollable) return node
-            for (i in 0 until node.childCount) {
-                val result = findScrollable(node.getChild(i) ?: continue)
-                if (result != null) return result
+        private fun findScrollable(n: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+            if (n.isScrollable) return n
+            for (i in 0 until n.childCount) {
+                val r = findScrollable(n.getChild(i) ?: continue)
+                if (r != null) return r
             }
             return null
         }
 
-        private fun typeText(root: AccessibilityNodeInfo, text: String): Boolean {
-            val focused = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
-            val args = android.os.Bundle()
-            args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
-            return focused?.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args) ?: false
+        private fun findEditable(n: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+            if (n.isEditable) return n
+            for (i in 0 until n.childCount) {
+                val r = findEditable(n.getChild(i) ?: continue)
+                if (r != null) return r
+            }
+            return null
         }
     }
 
@@ -156,16 +144,15 @@ class GamaAccessibilityService : AccessibilityService() {
         val info = serviceInfo
         info.eventTypes = AccessibilityEvent.TYPES_ALL_MASK
         info.feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
-        info.flags = AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+        info.flags = AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS or
+            AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS or
+            AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS
         serviceInfo = info
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
 
-    override fun onInterrupt() {
-        instance = null
-        isEnabled = false
-    }
+    override fun onInterrupt() {}
 
     override fun onDestroy() {
         super.onDestroy()

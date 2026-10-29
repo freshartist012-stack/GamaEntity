@@ -10,7 +10,7 @@ android {
     defaultConfig {
         minSdk 26
         targetSdk 36
-        versionCode 191
+        versionCode 192
         versionName "1.0"
     }
 
