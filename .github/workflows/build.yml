@@ -35,8 +35,7 @@ jobs:
           -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
       - name: Verify APK signed
         run: |
-          apt-get install -y apksigner 2>/dev/null || true
-          apksigner verify --verbose app/build/outputs/apk/pro/release/app-pro-release.apk || echo "APK verification failed"
+          $ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools | tail -1)/apksigner verify --verbose app/build/outputs/apk/pro/release/app-pro-release.apk
       - name: Upload Free AAB
         uses: actions/upload-artifact@v4
         with:
