@@ -42,7 +42,12 @@ class AssistantOverlayActivity : Activity() {
             })
             finish()
         } else {
-            startService(Intent(this, OverlayService::class.java).apply {
+            val serviceClass = try {
+                Class.forName("com.rio.gamaentity.ProOverlayService")
+            } catch (e: ClassNotFoundException) {
+                OverlayService::class.java
+            }
+            startService(Intent(this, serviceClass).apply {
                 action = OverlayService.ACTION_SHOW
             })
             finish()

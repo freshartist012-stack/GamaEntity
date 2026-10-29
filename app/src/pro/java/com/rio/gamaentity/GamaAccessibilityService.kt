@@ -89,12 +89,34 @@ class GamaAccessibilityService : AccessibilityService() {
             val clickables = mutableListOf<AccessibilityNodeInfo>()
             collectClickable(root, clickables)
             val target = clickables.getOrNull(index - 1) ?: return false
-            return target.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+            // Try performAction first, fall back to gesture click
+            if (target.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
+            val bounds = android.graphics.Rect()
+            target.getBoundsInScreen(bounds)
+            val x = bounds.centerX().toFloat()
+            val y = bounds.centerY().toFloat()
+            return gestureClick(x, y)
         }
 
         private fun clickByText(root: AccessibilityNodeInfo, text: String): Boolean {
             val nodes = root.findAccessibilityNodeInfosByText(text)
-            return nodes?.firstOrNull()?.performAction(AccessibilityNodeInfo.ACTION_CLICK) ?: false
+            val target = nodes?.firstOrNull() ?: return false
+            if (target.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true
+            val bounds = android.graphics.Rect()
+            target.getBoundsInScreen(bounds)
+            return gestureClick(bounds.centerX().toFloat(), bounds.centerY().toFloat())
+        }
+
+        fun gestureClick(x: Float, y: Float): Boolean {
+            val service = instance ?: return false
+            val path = android.graphics.Path()
+            path.moveTo(x, y)
+            val stroke = android.accessibilityservice.GestureDescription.StrokeDescription(path, 0, 50)
+            val gesture = android.accessibilityservice.GestureDescription.Builder()
+                .addStroke(stroke)
+                .build()
+            service.dispatchGesture(gesture, null, null)
+            return true
         }
 
         private fun collectClickable(node: AccessibilityNodeInfo, list: MutableList<AccessibilityNodeInfo>) {

@@ -32,5 +32,15 @@
         <service
             android:name=".ProOverlayService"
             android:exported="false"/>
+        <activity
+            android:name=".AssistantOverlayActivity"
+            android:exported="true"
+            android:theme="@style/Theme.AppCompat.Dialog"
+            tools:replace="android:exported">
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
+        </activity>
     </application>
 </manifest>
