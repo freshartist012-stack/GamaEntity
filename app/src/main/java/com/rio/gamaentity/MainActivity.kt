@@ -2062,6 +2062,12 @@ $style"""
             drawerContent.addView(makeBtn("⭐ Get Pro Version", 0xFFB8860B.toInt()) {
                 showProInstaller()
             })
+        } else {
+            val accessStatus = if (GamaAccessibilityService.isEnabled) "✓ Screen Control Active" else "⚠ Enable Screen Control"
+            val accessColor = if (GamaAccessibilityService.isEnabled) 0xFF1A6B3C.toInt() else 0xFF880000.toInt()
+            drawerContent.addView(makeBtn(accessStatus, accessColor) {
+                startActivity(android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            })
         }
     }
 

@@ -9,7 +9,13 @@ class ProOverlayService : OverlayService() {
         if (!GamaAccessibilityService.isEnabled) return ""
         val uiTree = GamaAccessibilityService.getUITree()
         if (uiTree.isEmpty()) return ""
-        return "\n\nCURRENT SCREEN:\n$uiTree\n\nScreen commands (one per response):\nCLICK:n or CLICK:text\nSCROLL:DOWN or SCROLL:UP\nTYPE:text\nBACK\nHOME\nOnly use when user asks to interact with screen."
+        return "\n\nCURRENT SCREEN:\n$uiTree\n\n" +
+            "SCREEN CONTROL RULES:\n" +
+            "- One action per response only. Never chain multiple actions.\n" +
+            "- After executing one action, stop and wait for next instruction.\n" +
+            "- Commands: CLICK:n, CLICK:text, SCROLL:DOWN, SCROLL:UP, TYPE:text, BACK, HOME\n" +
+            "- Only use commands when user explicitly asks to interact with screen.\n" +
+            "- Confirm what you did after each action in one short sentence."
     }
 
     override fun handleScreenAction(reply: String): Boolean {
@@ -22,7 +28,7 @@ class ProOverlayService : OverlayService() {
                 if (executed) {
                     Handler(Looper.getMainLooper()).postDelayed({
                         startListening()
-                    }, 1000)
+                    }, 1200)
                     return true
                 }
             }
