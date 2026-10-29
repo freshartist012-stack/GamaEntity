@@ -42,6 +42,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: GamaEntity-pro-release
-          path: app/build/outputs/apk/proRelease/app-pro-release.apk
-      - name: Find APK
-        run: find app/build/outputs -name "*.apk" -o -name "*.aab" | head -20
+          path: app/build/outputs/apk/pro/release/app-pro-release.apk
