@@ -30,6 +30,9 @@
             android:exported="false"/>
         <activity
             android:name=".AssistantOverlayActivity"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
+            android:launchMode="singleInstance"
             android:exported="true"
             android:theme="@style/Theme.AppCompat.Dialog"
             tools:replace="android:exported">
