@@ -69,35 +69,88 @@ class GamaAccessibilityService : AccessibilityService() {
 
         fun executeAction(action: String): Boolean {
             val service = instance ?: return false
-            return when {
-                action.startsWith("CLICK:") -> {
-                    val t = action.removePrefix("CLICK:").trim()
-                    val list = elements()
-                    val idx = t.toIntOrNull()
-                    val node = if (idx != null) list.getOrNull(idx - 1)
-                               else list.firstOrNull { labelOf(it).contains(t, ignoreCase = true) }
-                    if (node == null) false else clickNode(node)
-                }
-                action.startsWith("SCROLL:") -> {
-                    val up = action.removePrefix("SCROLL:").trim().uppercase() == "UP"
-                    val act = if (up) AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
-                              else AccessibilityNodeInfo.ACTION_SCROLL_FORWARD
-                    val root = targetRoot()
-                    val sc = if (root == null) null else findScrollable(root)
-                    sc?.performAction(act) ?: false
-                }
-                action.startsWith("TYPE:") -> {
-                    val text = action.removePrefix("TYPE:").trim()
-                    val root = targetRoot() ?: return false
-                    val target = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: findEditable(root)
-                    val args = Bundle()
-                    args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
-                    target?.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args) ?: false
-                }
-                action == "BACK" -> service.performGlobalAction(GLOBAL_ACTION_BACK)
-                action == "HOME" -> service.performGlobalAction(GLOBAL_ACTION_HOME)
+            return when (action.trim().uppercase()) {
+                "BACK" -> service.performGlobalAction(GLOBAL_ACTION_BACK)
+                "HOME" -> service.performGlobalAction(GLOBAL_ACTION_HOME)
+                "MINIMIZE" -> service.performGlobalAction(GLOBAL_ACTION_RECENTS)
+                "SCROLL:DOWN" -> scrollDir(true)
+                "SCROLL:UP" -> scrollDir(false)
+                "SCROLL:LEFT" -> swipe(0.8f, 0.5f, 0.2f, 0.5f)
+                "SCROLL:RIGHT" -> swipe(0.2f, 0.5f, 0.8f, 0.5f)
                 else -> false
             }
+        }
+
+        private fun scrollDir(forward: Boolean): Boolean {
+            val root = targetRoot()
+            val sc = if (root == null) null else findScrollable(root)
+            val act = if (forward) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
+            if (sc != null && sc.performAction(act)) return true
+            return if (forward) swipe(0.5f, 0.75f, 0.5f, 0.25f) else swipe(0.5f, 0.25f, 0.5f, 0.75f)
+        }
+
+        private fun swipe(x1: Float, y1: Float, x2: Float, y2: Float): Boolean {
+            val service = instance ?: return false
+            val m = service.resources.displayMetrics
+            val path = Path()
+            path.moveTo(m.widthPixels * x1, m.heightPixels * y1)
+            path.lineTo(m.widthPixels * x2, m.heightPixels * y2)
+            val g = GestureDescription.Builder()
+                .addStroke(GestureDescription.StrokeDescription(path, 0, 300))
+                .build()
+            return service.dispatchGesture(g, null, null)
+        }
+
+        fun playBestMatch(query: String) {
+            Thread {
+                val words = query.lowercase().split(" ").filter { it.length > 1 }
+                if (words.isEmpty()) return@Thread
+                var tries = 0
+                while (tries < 16) {
+                    Thread.sleep(500)
+                    tries++
+                    val root = targetRoot() ?: continue
+                    val best = bestRow(root, words, query.lowercase().trim())
+                    if (best != null) {
+                        clickNode(best)
+                        return@Thread
+                    }
+                }
+            }.start()
+        }
+
+        private fun rowText(n: AccessibilityNodeInfo, depth: Int = 0): String {
+            if (depth > 8) return ""
+            val sb = StringBuilder(labelOf(n)).append(" ")
+            for (i in 0 until n.childCount) {
+                val ch = n.getChild(i) ?: continue
+                sb.append(rowText(ch, depth + 1))
+            }
+            return sb.toString()
+        }
+
+        private fun bestRow(root: AccessibilityNodeInfo, words: List<String>, full: String): AccessibilityNodeInfo? {
+            var best: AccessibilityNodeInfo? = null
+            var bestScore = 0
+            fun walk(n: AccessibilityNodeInfo, depth: Int) {
+                if (depth > 25) return
+                if (n.isClickable && n.isVisibleToUser && !n.isEditable) {
+                    val t = rowText(n).lowercase().trim()
+                    if (t != full) {
+                        val score = words.count { t.contains(it) }
+                        if (score > bestScore) {
+                            best = n
+                            bestScore = score
+                        }
+                    }
+                }
+                for (i in 0 until n.childCount) {
+                    val ch = n.getChild(i) ?: continue
+                    walk(ch, depth + 1)
+                }
+            }
+            walk(root, 0)
+            return if (bestScore * 100 >= words.size * 60) best else null
         }
 
         private fun clickNode(node: AccessibilityNodeInfo): Boolean {
