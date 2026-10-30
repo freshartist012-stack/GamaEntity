@@ -10,7 +10,7 @@ android {
     defaultConfig {
         minSdk 26
         targetSdk 36
-        versionCode 192
+        versionCode 193
         versionName "1.0"
     }
 
@@ -32,17 +32,7 @@ android {
     buildTypes {
         release {
             minifyEnabled false
-            signingConfig signingConfigs.release
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-        }
-    }
-
-    signingConfigs {
-        release {
-            storeFile file(System.getProperty("android.injected.signing.store.file", "keystore.jks"))
-            storePassword System.getProperty("android.injected.signing.store.password", "")
-            keyAlias System.getProperty("android.injected.signing.key.alias", "")
-            keyPassword System.getProperty("android.injected.signing.key.password", "")
         }
     }
 
