@@ -21,7 +21,7 @@ class OnboardingActivity : AppCompatActivity() {
         val savedModel = prefs.getString("model_type", null)
 
         if (savedName != null && savedModel != null) {
-            startActivity(Intent(this, MainActivity::class.java))
+            startActivity(Intent(this, try { Class.forName("com.rio.gamaentity.ProMainActivity") } catch (e: ClassNotFoundException) { MainActivity::class.java }))
             finish()
             return
         }
