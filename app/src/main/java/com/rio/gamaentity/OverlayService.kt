@@ -319,7 +319,7 @@ Never use contact names in commands, always use their number.""")
             })
             systemPromptAdded = true
         }
-        messages.put(JSONObject().apply { put("role", "user"); put("content", transcript) })
+        messages.put(JSONObject().apply { put("role", "user"); put("content", transcript + getSystemPromptExtra()) })
 
         client.newCall(Request.Builder()
             .url("https://api.groq.com/openai/v1/chat/completions")
@@ -348,7 +348,7 @@ Never use contact names in commands, always use their number.""")
                         messages.put(JSONObject().apply { put("role", "assistant"); put("content", reply) })
                         responseText.text = reply
 
-                        val hasCommand = handleAction(reply)
+                        val hasCommand = handleScreenAction(reply) || handleAction(reply)
 
                         if (ttsReady) {
                             val speakText = if (!hasCommand) reply.replace(Regex("[*_#]"), "").take(200) else ""
