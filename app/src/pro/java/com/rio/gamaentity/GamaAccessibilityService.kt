@@ -101,7 +101,7 @@ class GamaAccessibilityService : AccessibilityService() {
             return service.dispatchGesture(g, null, null)
         }
 
-        fun playBestMatch(query: String) {
+        fun playBestMatch(query: String, leaveAfter: Boolean = false) {
             Thread {
                 val words = query.lowercase().split(" ").filter { it.length > 1 }
                 if (words.isEmpty()) return@Thread
@@ -113,6 +113,10 @@ class GamaAccessibilityService : AccessibilityService() {
                     val best = bestRow(root, words, query.lowercase().trim())
                     if (best != null) {
                         clickNode(best)
+                        if (leaveAfter) {
+                            Thread.sleep(1500)
+                            instance?.performGlobalAction(GLOBAL_ACTION_BACK)
+                        }
                         return@Thread
                     }
                 }
@@ -151,6 +155,25 @@ class GamaAccessibilityService : AccessibilityService() {
             }
             walk(root, 0)
             return if (bestScore * 100 >= words.size * 60) best else null
+        }
+
+        @JvmStatic fun sendWhatsApp() {
+            Thread {
+                var tries = 0
+                while (tries < 16) {
+                    Thread.sleep(500)
+                    tries++
+                    val root = targetRoot() ?: continue
+                    val nodes = root.findAccessibilityNodeInfosByText("Send")
+                    val btn = nodes?.firstOrNull { it.isVisibleToUser && !it.isEditable }
+                    if (btn != null) {
+                        clickNode(btn)
+                        Thread.sleep(1500)
+                        instance?.performGlobalAction(GLOBAL_ACTION_BACK)
+                        return@Thread
+                    }
+                }
+            }.start()
         }
 
         private fun clickNode(node: AccessibilityNodeInfo): Boolean {

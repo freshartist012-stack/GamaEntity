@@ -17,11 +17,12 @@ class ProOverlayService : OverlayService() {
             val query = when {
                 upper.startsWith("SPOTIFY:") -> t.substring(8).trim()
                 upper.startsWith("YOUTUBE_MUSIC:") -> t.substring(14).trim()
+                upper.startsWith("YOUTUBE:") -> t.substring(8).trim()
                 else -> ""
             }
             if (query.isNotEmpty()) {
                 Handler(Looper.getMainLooper()).postDelayed({
-                    GamaAccessibilityService.playBestMatch(query)
+                    GamaAccessibilityService.playBestMatch(query, upper.startsWith("SPOTIFY:"))
                 }, 1500)
                 return false
             }
