@@ -21,6 +21,8 @@ class ProOverlayService : OverlayService() {
                 else -> ""
             }
             if (query.isNotEmpty()) {
+                taskBusy = true
+                GamaAccessibilityService.onTaskDone = { Handler(Looper.getMainLooper()).post { resumeAfterTask() } }
                 Handler(Looper.getMainLooper()).postDelayed({
                     GamaAccessibilityService.playBestMatch(query, upper.startsWith("SPOTIFY:"))
                 }, 1500)

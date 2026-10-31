@@ -276,7 +276,15 @@ open class OverlayService : Service() {
         }
     }
 
+    @Volatile protected var taskBusy = false
+
+    fun resumeAfterTask() {
+        taskBusy = false
+        handler.postDelayed({ if (isActive && voiceEnabled) startListening() }, 600)
+    }
+
     protected open fun startListening() {
+        if (taskBusy) return
         if (!isActive || !voiceEnabled) return
         handler.post {
             responseText.text = "Listening..."

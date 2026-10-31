@@ -16,6 +16,7 @@ class GamaAccessibilityService : AccessibilityService() {
         var instance: GamaAccessibilityService? = null
         var isEnabled = false
         @Volatile var lastApp: String = ""
+        @Volatile var onTaskDone: (() -> Unit)? = null
 
         fun returnToLastApp() {
             val service = instance ?: return
@@ -31,6 +32,8 @@ class GamaAccessibilityService : AccessibilityService() {
             }
             intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
             service.startActivity(intent)
+            onTaskDone?.invoke()
+            onTaskDone = null
         }
 
         private fun targetRoot(): AccessibilityNodeInfo? {
