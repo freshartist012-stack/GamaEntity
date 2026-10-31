@@ -139,11 +139,11 @@ class AssistantOverlayActivity : Activity() {
                 val finalMessage = msgInput.text.toString().trim()
                 val uri = Uri.parse("https://api.whatsapp.com/send?phone=$selectedNumber&text=${Uri.encode(finalMessage)}")
                 try { startActivity(Intent(Intent.ACTION_VIEW, uri).apply { setPackage("com.whatsapp") }) }
+                catch (e: Exception) { startActivity(Intent(Intent.ACTION_VIEW, uri)) }
                 try {
                     val svc = Class.forName("com.rio.gamaentity.GamaAccessibilityService")
                     svc.getMethod("sendWhatsApp").invoke(null)
                 } catch (e: Exception) {}
-                catch (e: Exception) { startActivity(Intent(Intent.ACTION_VIEW, uri)) }
                 finish()
             }
             .setNegativeButton("Cancel") { _, _ -> finish() }
