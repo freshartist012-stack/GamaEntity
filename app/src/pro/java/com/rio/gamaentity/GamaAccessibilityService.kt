@@ -15,6 +15,23 @@ class GamaAccessibilityService : AccessibilityService() {
     companion object {
         var instance: GamaAccessibilityService? = null
         var isEnabled = false
+        @Volatile var lastApp: String = ""
+
+        fun returnToLastApp() {
+            val service = instance ?: return
+            val pkg = lastApp
+            if (pkg.isEmpty()) {
+                service.performGlobalAction(GLOBAL_ACTION_HOME)
+                return
+            }
+            val intent = service.packageManager.getLaunchIntentForPackage(pkg)
+            if (intent == null) {
+                service.performGlobalAction(GLOBAL_ACTION_HOME)
+                return
+            }
+            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+            service.startActivity(intent)
+        }
 
         private fun targetRoot(): AccessibilityNodeInfo? {
             val service = instance ?: return null
@@ -115,7 +132,7 @@ class GamaAccessibilityService : AccessibilityService() {
                         clickNode(best)
                         if (leaveAfter) {
                             Thread.sleep(1500)
-                            instance?.performGlobalAction(GLOBAL_ACTION_BACK)
+                            returnToLastApp()
                         }
                         return@Thread
                     }
@@ -169,7 +186,7 @@ class GamaAccessibilityService : AccessibilityService() {
                     if (btn != null) {
                         clickNode(btn)
                         Thread.sleep(1500)
-                        instance?.performGlobalAction(GLOBAL_ACTION_BACK)
+                        returnToLastApp()
                         return@Thread
                     }
                 }
@@ -226,7 +243,19 @@ class GamaAccessibilityService : AccessibilityService() {
         serviceInfo = info
     }
 
-    override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            val pkg = event.packageName?.toString() ?: return
+            if (pkg == packageName || pkg == "com.android.systemui") return
+            val launcher = packageManager.resolveActivity(
+                android.content.Intent(android.content.Intent.ACTION_MAIN).addCategory(android.content.Intent.CATEGORY_HOME),
+                0
+            )?.activityInfo?.packageName
+            if (pkg == launcher) return
+            if (pkg in listOf("com.spotify.music", "com.whatsapp", "com.google.android.apps.youtube.music", "com.google.android.youtube")) return
+            lastApp = pkg
+        }
+    }
 
     override fun onInterrupt() {}
 
