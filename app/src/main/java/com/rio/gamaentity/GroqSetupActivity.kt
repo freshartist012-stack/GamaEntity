@@ -47,7 +47,7 @@ class GroqSetupActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             prefs.edit().putString("groq_key", key).putString("model_type", "groq").apply()
-            startActivity(Intent(this, MainActivity::class.java))
+            startActivity(Intent(this, try { Class.forName("com.rio.gamaentity.ProMainActivity") } catch (e: ClassNotFoundException) { MainActivity::class.java }))
             finish()
         }
 
