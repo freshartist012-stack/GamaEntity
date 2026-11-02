@@ -454,7 +454,7 @@ Never use contact names in commands, always use their number.""")
             Regex("(?i)OPEN_APP:(.+)").find(t)?.let {
                 val appName = it.groupValues[1].trim().lowercase()
                 val found = packageManager.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
-                    .firstOrNull { ri -> ri.loadLabel(packageManager).toString().lowercase().contains(appName) }
+                    .firstOrNull { ri -> ri.loadLabel(packageManager).toString().lowercase().replace(Regex("[^a-z0-9]"), "").contains(appName.lowercase().replace(Regex("[^a-z0-9]"), "")) }
                 found?.let { ri -> packageManager.getLaunchIntentForPackage(ri.activityInfo.packageName)?.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }?.let { startActivity(it) } }
                 return true
             }

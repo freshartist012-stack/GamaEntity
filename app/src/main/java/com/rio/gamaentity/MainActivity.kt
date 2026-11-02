@@ -1742,7 +1742,7 @@ $style"""
                 val mainIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
                 val launchableApps = pm.queryIntentActivities(mainIntent, 0)
                 val found = launchableApps.firstOrNull { ri ->
-                    ri.loadLabel(pm).toString().lowercase().contains(appName)
+                    ri.loadLabel(pm).toString().lowercase().replace(Regex("[^a-z0-9]"), "").contains(appName.lowercase().replace(Regex("[^a-z0-9]"), ""))
                 }
                 if (found != null) {
                     val launchIntent = pm.getLaunchIntentForPackage(found.activityInfo.packageName)
