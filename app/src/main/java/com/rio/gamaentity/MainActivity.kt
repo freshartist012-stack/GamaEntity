@@ -45,6 +45,11 @@ open class MainActivity : AppCompatActivity() {
     private lateinit var sendButton: Button
     private lateinit var micButton: ImageButton
     private var whisperRecorder: WhisperRecorder? = null
+    private lateinit var walkieButton: ImageButton
+    private fun whisperLang(): String {
+        val l = (prefs.getString("app_language", "en-ZA") ?: "en-ZA").substringBefore("-")
+        return if (l == "en" || l == "af") l else "zu"
+    }
 
     private fun isZuluMode(): Boolean {
         return false
@@ -97,6 +102,7 @@ open class MainActivity : AppCompatActivity() {
         inputField = findViewById(R.id.inputField)
         sendButton = findViewById(R.id.sendButton)
         micButton = findViewById(R.id.micButton)
+        walkieButton = findViewById(R.id.walkieButton)
 
         tts = TextToSpeech(this) { status ->
             ttsReady = status == TextToSpeech.SUCCESS
@@ -199,9 +205,8 @@ open class MainActivity : AppCompatActivity() {
                 listenWithSpeechRecognizer()
             }
         }
-        micButton.setOnClickListener { if (!isZuluMode()) startVoiceInput() }
-        micButton.setOnTouchListener { v, ev ->
-            if (!isZuluMode()) return@setOnTouchListener false
+        micButton.setOnClickListener { startVoiceInput() }
+        walkieButton.setOnTouchListener { v, ev ->
             if (ev.action == android.view.MotionEvent.ACTION_DOWN) {
                 if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                     androidx.core.app.ActivityCompat.requestPermissions(this, arrayOf(android.Manifest.permission.RECORD_AUDIO), 301)
@@ -209,17 +214,17 @@ open class MainActivity : AppCompatActivity() {
                 }
                 whisperRecorder = WhisperRecorder()
                 whisperRecorder?.start()
-                micButton.setColorFilter(0xFFFF0000.toInt())
+                walkieButton.setColorFilter(0xFFFF0000.toInt())
             }
             if (ev.action == android.view.MotionEvent.ACTION_UP || ev.action == android.view.MotionEvent.ACTION_CANCEL) {
-                micButton.clearColorFilter()
+                walkieButton.clearColorFilter()
                 val wav = whisperRecorder?.stop()
                 whisperRecorder = null
                 if (wav == null) {
                     android.widget.Toast.makeText(this, "Hold the mic while you speak", android.widget.Toast.LENGTH_SHORT).show()
                 } else {
                     android.widget.Toast.makeText(this, "Transcribing...", android.widget.Toast.LENGTH_SHORT).show()
-                    WhisperClient.transcribe(wav, "zu", groqKey) { text, err ->
+                    WhisperClient.transcribe(wav, whisperLang(), groqKey) { text, err ->
                         runOnUiThread {
                             if (text != null) { inputField.setText(text); sendMessage() }
                             else android.widget.Toast.makeText(this, err ?: "Error", android.widget.Toast.LENGTH_SHORT).show()

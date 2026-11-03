@@ -119,6 +119,14 @@
                 android:tint="@color/primary"/>
 
             <ImageButton
+                android:id="@+id/walkieButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@android:drawable/ic_btn_speak_now"
+                android:background="@android:color/transparent"
+                android:tint="#FFB300"/>
+
+            <ImageButton
                 android:id="@+id/attachButton"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
