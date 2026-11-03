@@ -47,7 +47,7 @@ open class MainActivity : AppCompatActivity() {
     private var whisperRecorder: WhisperRecorder? = null
 
     private fun isZuluMode(): Boolean {
-        return prefs.getString("app_language", "en-ZA") == "zu-ZA"
+        return false
     }
     private lateinit var drawerLayout: DrawerLayout
     protected lateinit var drawerContent: LinearLayout
