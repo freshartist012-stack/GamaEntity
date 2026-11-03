@@ -44,6 +44,11 @@ open class MainActivity : AppCompatActivity() {
     private lateinit var inputField: EditText
     private lateinit var sendButton: Button
     private lateinit var micButton: ImageButton
+    private var whisperRecorder: WhisperRecorder? = null
+
+    private fun isZuluMode(): Boolean {
+        return prefs.getString("app_language", "en-ZA") == "zu-ZA"
+    }
     private lateinit var drawerLayout: DrawerLayout
     protected lateinit var drawerContent: LinearLayout
     private lateinit var prefs: SharedPreferences
@@ -194,7 +199,36 @@ open class MainActivity : AppCompatActivity() {
                 listenWithSpeechRecognizer()
             }
         }
-        micButton.setOnClickListener { startVoiceInput() }
+        micButton.setOnClickListener { if (!isZuluMode()) startVoiceInput() }
+        micButton.setOnTouchListener { v, ev ->
+            if (!isZuluMode()) return@setOnTouchListener false
+            if (ev.action == android.view.MotionEvent.ACTION_DOWN) {
+                if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    androidx.core.app.ActivityCompat.requestPermissions(this, arrayOf(android.Manifest.permission.RECORD_AUDIO), 301)
+                    return@setOnTouchListener true
+                }
+                whisperRecorder = WhisperRecorder()
+                whisperRecorder?.start()
+                micButton.setColorFilter(0xFFFF0000.toInt())
+            }
+            if (ev.action == android.view.MotionEvent.ACTION_UP || ev.action == android.view.MotionEvent.ACTION_CANCEL) {
+                micButton.clearColorFilter()
+                val wav = whisperRecorder?.stop()
+                whisperRecorder = null
+                if (wav == null) {
+                    android.widget.Toast.makeText(this, "Hold the mic while you speak", android.widget.Toast.LENGTH_SHORT).show()
+                } else {
+                    android.widget.Toast.makeText(this, "Transcribing...", android.widget.Toast.LENGTH_SHORT).show()
+                    WhisperClient.transcribe(wav, "zu", groqKey) { text, err ->
+                        runOnUiThread {
+                            if (text != null) { inputField.setText(text); sendMessage() }
+                            else android.widget.Toast.makeText(this, err ?: "Error", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
+            true
+        }
 
         showDataDisclosureIfNeeded()
         startNewChat()
