@@ -33,7 +33,7 @@ object WhisperClient {
                 }
                 val json = JSONObject(text)
                 if (json.has("error")) {
-                    onResult(null, "Voice error. Try again.")
+                    onResult(null, json.optJSONObject("error")?.optString("message", "error")?.take(120) ?: "error")
                     return@Thread
                 }
                 val out = json.optString("text", "").trim()
