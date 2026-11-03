@@ -46,6 +46,7 @@ open class MainActivity : AppCompatActivity() {
     private lateinit var micButton: ImageButton
     private var whisperRecorder: WhisperRecorder? = null
     private lateinit var walkieButton: ImageButton
+    private var walkiePulse: android.animation.ObjectAnimator? = null
     private fun whisperLang(): String {
         val l = (prefs.getString("app_language", "en-ZA") ?: "en-ZA").substringBefore("-")
         return if (l == "en" || l == "af") l else "zu"
@@ -215,9 +216,21 @@ open class MainActivity : AppCompatActivity() {
                 whisperRecorder = WhisperRecorder()
                 whisperRecorder?.start()
                 walkieButton.setColorFilter(0xFFFF0000.toInt())
+                typingIndicator.text = "🎙 Listening... release to send"
+                typingIndicator.visibility = android.view.View.VISIBLE
+                walkieButton.animate().scaleX(1.4f).scaleY(1.4f).setDuration(150).start()
+                walkiePulse = android.animation.ObjectAnimator.ofFloat(typingIndicator, "alpha", 1f, 0.3f)
+                walkiePulse?.duration = 600
+                walkiePulse?.repeatCount = android.animation.ValueAnimator.INFINITE
+                walkiePulse?.repeatMode = android.animation.ValueAnimator.REVERSE
+                walkiePulse?.start()
             }
             if (ev.action == android.view.MotionEvent.ACTION_UP || ev.action == android.view.MotionEvent.ACTION_CANCEL) {
                 walkieButton.clearColorFilter()
+                walkieButton.animate().scaleX(1f).scaleY(1f).setDuration(150).start()
+                walkiePulse?.cancel()
+                typingIndicator.alpha = 1f
+                typingIndicator.text = "Transcribing..."
                 val wav = whisperRecorder?.stop()
                 whisperRecorder = null
                 if (wav == null) {
@@ -226,7 +239,7 @@ open class MainActivity : AppCompatActivity() {
                     android.widget.Toast.makeText(this, "Transcribing...", android.widget.Toast.LENGTH_SHORT).show()
                     WhisperClient.transcribe(wav, whisperLang(), groqKey) { text, err ->
                         runOnUiThread {
-                            if (text != null) { inputField.setText(text); sendMessage() }
+                            typingIndicator.visibility = android.view.View.GONE; typingIndicator.text = "GAMA is thinking..."; if (text != null) { inputField.setText(text); sendMessage() }
                             else android.widget.Toast.makeText(this, err ?: "Error", android.widget.Toast.LENGTH_SHORT).show()
                         }
                     }
