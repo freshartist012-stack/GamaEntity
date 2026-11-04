@@ -209,6 +209,46 @@ open class OverlayService : Service() {
             setOnClickListener { startListening() }
         }
         inputRow.addView(micBtn)
+
+        val walkieBtn = TextView(this).apply {
+            text = "📻"
+            textSize = 18f
+            setPadding(12, 0, 0, 0)
+            setOnTouchListener { _, ev ->
+                if (ev.action == android.view.MotionEvent.ACTION_DOWN) {
+                    if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        responseText.text = "Open GAMA and hold the amber button once to allow the mic"
+                    } else {
+                        walkieRec = WhisperRecorder()
+                        walkieRec?.start()
+                        responseText.text = "🎙 Listening... release to send"
+                        walkiePulse = android.animation.ObjectAnimator.ofFloat(responseText, "alpha", 1f, 0.3f)
+                        walkiePulse?.duration = 600
+                        walkiePulse?.repeatCount = android.animation.ValueAnimator.INFINITE
+                        walkiePulse?.repeatMode = android.animation.ValueAnimator.REVERSE
+                        walkiePulse?.start()
+                    }
+                }
+                if (ev.action == android.view.MotionEvent.ACTION_UP || ev.action == android.view.MotionEvent.ACTION_CANCEL) {
+                    walkiePulse?.cancel()
+                    responseText.alpha = 1f
+                    val wav = walkieRec?.stop()
+                    walkieRec = null
+                    if (wav != null) {
+                        responseText.text = "Transcribing..."
+                        val key = getSharedPreferences("gama_prefs", MODE_PRIVATE).getString("groq_key", "") ?: ""
+                        val l = (getSharedPreferences("gama_prefs", MODE_PRIVATE).getString("app_language", "en-ZA") ?: "en-ZA").substringBefore("-")
+                        WhisperClient.transcribe(wav, if (l == "en" || l == "af") l else "zu", key) { t, e ->
+                            handler.post { if (t != null) sendToGAMA(t) else responseText.text = e ?: "Error" }
+                        }
+                    } else if (responseText.text.toString().startsWith("🎙")) {
+                        responseText.text = "Hold the button while you speak"
+                    }
+                }
+                true
+            }
+        }
+        inputRow.addView(walkieBtn)
         root.addView(inputRow)
 
         overlayParams = WindowManager.LayoutParams(
@@ -277,6 +317,8 @@ open class OverlayService : Service() {
     }
 
     @Volatile protected var taskBusy = false
+    private var walkieRec: WhisperRecorder? = null
+    private var walkiePulse: android.animation.ObjectAnimator? = null
 
     fun resumeAfterTask() {
         taskBusy = false
