@@ -665,7 +665,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                                 if (reply.contains("COLUMN:")) {
                                     renderColumn(reply)
                                 } else {
-                                    addResearchMessage("GAMA Research", reply, false)
+                                    addResearchMessage("GAMA Research", reply, false); runMemoryAgent()
                                 }
                             }
                         } catch (e: Exception) {
@@ -924,6 +924,25 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         }.start()
     }
 
+    private fun runMemoryAgent() {
+        val sb = StringBuilder()
+        val start = maxOf(0, researchMessages.length() - 6)
+        for (i in start until researchMessages.length()) {
+            val m = researchMessages.getJSONObject(i)
+            if (m.optString("role") == "system") continue
+            sb.append(m.optString("role")).append(": ").append(m.optString("content").take(400)).append(System.lineSeparator())
+        }
+        MemoryAgent.update(this, sb.toString()) { n, err ->
+            if (err != null) runOnUiThread { android.widget.Toast.makeText(this, err, android.widget.Toast.LENGTH_LONG).show() }
+        }
+    }
+
+    private fun factsContext(): String {
+        val f = MemoryStore.asPrompt(this)
+        if (f.isEmpty()) return ""
+        return "Things you know about the user:" + System.lineSeparator() + f
+    }
+
     private fun getContinuityContext(): String {
         return try {
             val memory = readMemory()
@@ -963,7 +982,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
 
         return """You are GAMA Research — a serious, focused research assistant for $userName. $profileContext
 
-${getContinuityContext()}
+${factsContext()}
 YOUR JOB: Help this specific person with their specific situation. Generic answers are a failure. Your job is to understand what they actually need and deliver exactly that.
 
 INTERNET ACCESS: You have real-time web access. Web content will be provided labeled as WEB RESEARCH FOUND. 
