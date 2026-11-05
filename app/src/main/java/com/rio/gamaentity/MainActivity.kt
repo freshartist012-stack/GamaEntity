@@ -654,7 +654,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                             val json = JSONObject(b ?: "")
                             if (json.has("error")) {
                                 if (researchMessages.length() > 0) researchMessages.remove(researchMessages.length() - 1)
-                                addResearchMessage("GAMA Research", "Try again in a moment.", false)
+                                addResearchMessage("GAMA Research", "Error: " + (json.optJSONObject("error")?.optString("message", "unknown")?.take(200) ?: "unknown"), false)
                             } else {
                                 val reply = json.getJSONArray("choices").getJSONObject(0)
                                     .getJSONObject("message").getString("content").trim()
