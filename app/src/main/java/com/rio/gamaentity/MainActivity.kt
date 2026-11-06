@@ -2093,7 +2093,8 @@ $style"""
                 startNewState()
                 addResearchMessage("GAMA Research", "New research state started.", false)
             })
-            drawerContent.addView(makeBtn("State History", 0xFF2E5090.toInt()) { showStateHistory() })\n            drawerContent.addView(makeBtn("Projects", 0xFF1A6B3C.toInt()) { showProjects() })
+            drawerContent.addView(makeBtn("State History", 0xFF2E5090.toInt()) { showStateHistory() })
+            drawerContent.addView(makeBtn("Projects", 0xFF1A6B3C.toInt()) { showProjects() })
             drawerContent.addView(makeBtn("Export Memory", 0xFF2E5090.toInt()) { exportMemory() })
             drawerContent.addView(makeBtn("Import Memory", 0xFF2E5090.toInt()) {
                 val intent = android.content.Intent(android.content.Intent.ACTION_GET_CONTENT).apply { type = "application/json" }
