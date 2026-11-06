@@ -493,7 +493,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
             showResearchProfileSetup(text)
             return
         }
-        addResearchMessage("You", text, true)
+        StateStore.append(this, currentStateId, "user", text); addResearchMessage("You", text, true)
         executeResearchQuery(text, "")
     }
 
@@ -665,7 +665,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                                 if (reply.contains("COLUMN:")) {
                                     renderColumn(reply)
                                 } else {
-                                    addResearchMessage("GAMA Research", reply, false); runMemoryAgent()
+                                    StateStore.append(this, currentStateId, "assistant", reply); addResearchMessage("GAMA Research", reply, false); runMemoryAgent()
                                 }
                             }
                         } catch (e: Exception) {
@@ -2234,64 +2234,38 @@ $style"""
     }
 
     private fun showStateHistory() {
-        val memory = readMemory()
-        val states = memory.optJSONArray("states")
-        if (states == null || states.length() == 0) {
-            android.widget.Toast.makeText(this, "No research states yet", android.widget.Toast.LENGTH_SHORT).show()
+        val ids = StateStore.ids(this)
+        if (ids.isEmpty()) {
+            android.widget.Toast.makeText(this, "No saved states yet", android.widget.Toast.LENGTH_SHORT).show()
             return
         }
-
-        val layout = android.widget.LinearLayout(this)
-        layout.orientation = android.widget.LinearLayout.VERTICAL
-        layout.setPadding(32, 32, 32, 32)
-
-        val scroll = android.widget.ScrollView(this)
-        val inner = android.widget.LinearLayout(this)
-        inner.orientation = android.widget.LinearLayout.VERTICAL
-        scroll.addView(inner)
-        layout.addView(scroll)
-
-        val sdf = java.text.SimpleDateFormat("MMM dd, HH:mm", java.util.Locale.getDefault())
-
-        for (i in states.length() - 1 downTo 0) {
-            val state = states.getJSONObject(i)
-            val time = sdf.format(java.util.Date(state.optLong("started")))
-            val summary = state.optString("summary", "No summary available")
-            val msgCount = state.optInt("message_count", 0)
-
-            val card = android.widget.LinearLayout(this)
-            card.orientation = android.widget.LinearLayout.VERTICAL
-            card.setBackgroundColor(0xFF1A1A2E.toInt())
-            card.setPadding(24, 16, 24, 16)
-            val cardParams = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            cardParams.setMargins(0, 0, 0, 12)
-            card.layoutParams = cardParams
-
-            val timeView = android.widget.TextView(this)
-            timeView.text = "$time · $msgCount messages"
-            timeView.textSize = 11f
-            timeView.setTextColor(0xFF888888.toInt())
-            card.addView(timeView)
-
-            val summaryView = android.widget.TextView(this)
-            summaryView.text = summary
-            summaryView.textSize = 14f
-            summaryView.setTextColor(0xFFEEEEEE.toInt())
-            summaryView.setPadding(0, 8, 0, 0)
-            summaryView.setTextIsSelectable(true)
-            card.addView(summaryView)
-
-            inner.addView(card)
-        }
-
+        val labels = ids.map { id ->
+            val t = id.removePrefix("state_").toLongOrNull()
+            val time = if (t != null) java.text.SimpleDateFormat("MMM dd, HH:mm", java.util.Locale.getDefault()).format(java.util.Date(t)) else id
+            time + " - " + StateStore.preview(this, id)
+        }.toTypedArray()
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("Research States")
-            .setView(layout)
-            .setPositiveButton("Close") { d, _ -> d.dismiss() }
+            .setItems(labels) { _, which -> openState(ids[which]) }
+            .setNegativeButton("Close") { d, _ -> d.dismiss() }
             .show()
+    }
+
+    private fun openState(id: String) {
+        currentStateId = id
+        currentStateStartTime = System.currentTimeMillis()
+        researchMessagesContainer.removeAllViews()
+        researchMessages = JSONArray()
+        researchMessages.put(JSONObject().apply { put("role", "system"); put("content", buildResearchSystemPrompt()) })
+        researchSystemPromptAdded = true
+        val saved = StateStore.load(this, id)
+        for (i in 0 until saved.length()) {
+            val m = saved.getJSONObject(i)
+            val role = m.optString("role")
+            val content = m.optString("content")
+            researchMessages.put(JSONObject().apply { put("role", role); put("content", content) })
+            addResearchMessage(if (role == "user") "You" else "GAMA Research", content, role == "user")
+        }
     }
 
     private fun startNewState() {
