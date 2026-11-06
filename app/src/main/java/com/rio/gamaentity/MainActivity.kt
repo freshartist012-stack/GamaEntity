@@ -2093,7 +2093,7 @@ $style"""
                 startNewState()
                 addResearchMessage("GAMA Research", "New research state started.", false)
             })
-            drawerContent.addView(makeBtn("State History", 0xFF2E5090.toInt()) { showStateHistory() })
+            drawerContent.addView(makeBtn("State History", 0xFF2E5090.toInt()) { showStateHistory() })\n            drawerContent.addView(makeBtn("Projects", 0xFF1A6B3C.toInt()) { showProjects() })
             drawerContent.addView(makeBtn("Export Memory", 0xFF2E5090.toInt()) { exportMemory() })
             drawerContent.addView(makeBtn("Import Memory", 0xFF2E5090.toInt()) {
                 val intent = android.content.Intent(android.content.Intent.ACTION_GET_CONTENT).apply { type = "application/json" }
@@ -2231,6 +2231,67 @@ $style"""
                 }
             }
         }.start()
+    }
+
+    private fun openProjectViewer(name: String, html: String) {
+        val dlg = android.app.Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen)
+        val root = android.widget.LinearLayout(this)
+        root.orientation = android.widget.LinearLayout.VERTICAL
+        val bar = android.widget.LinearLayout(this)
+        bar.orientation = android.widget.LinearLayout.HORIZONTAL
+        bar.setBackgroundColor(0xFF1A1A2E.toInt())
+        bar.setPadding(16, 16, 16, 16)
+        val title = android.widget.TextView(this)
+        title.text = name
+        title.setTextColor(0xFFFFFFFF.toInt())
+        title.textSize = 15f
+        title.layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        bar.addView(title)
+        val exportBtn = android.widget.TextView(this)
+        exportBtn.text = "Export"
+        exportBtn.setTextColor(0xFFCEBAA2.toInt())
+        exportBtn.setPadding(24, 0, 24, 0)
+        exportBtn.setOnClickListener {
+            val dir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
+            val fileName = name.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-') + ".html"
+            try {
+                java.io.File(dir, fileName).writeText(html)
+                android.widget.Toast.makeText(this, "Saved to Downloads/" + fileName, android.widget.Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                android.widget.Toast.makeText(this, "Could not export", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+        bar.addView(exportBtn)
+        val closeBtn = android.widget.TextView(this)
+        closeBtn.text = "Close"
+        closeBtn.setTextColor(0xFFCEBAA2.toInt())
+        closeBtn.setOnClickListener { dlg.dismiss() }
+        bar.addView(closeBtn)
+        root.addView(bar)
+        val web = android.webkit.WebView(this)
+        web.settings.javaScriptEnabled = true
+        web.settings.domStorageEnabled = true
+        web.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
+        web.layoutParams = android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
+        root.addView(web)
+        dlg.setContentView(root)
+        dlg.show()
+    }
+
+    private fun showProjects() {
+        val ids = ProjectStore.list(this)
+        if (ids.isEmpty()) {
+            android.widget.Toast.makeText(this, "No projects yet", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Projects")
+            .setItems(ids.toTypedArray()) { _, which ->
+                val html = ProjectStore.load(this, ids[which])
+                if (html != null) openProjectViewer(ids[which], html)
+            }
+            .setNegativeButton("Close") { d, _ -> d.dismiss() }
+            .show()
     }
 
     private fun showStateHistory() {
