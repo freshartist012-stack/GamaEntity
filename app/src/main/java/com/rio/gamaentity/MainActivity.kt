@@ -630,7 +630,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
             val body = JSONObject().apply {
                 put("model", "openai/gpt-oss-120b")
                 put("messages", researchMessages)
-                put("max_tokens", 2000)
+                put("max_tokens", 5000)
                 put("tool_choice", "none")
             }
             val request = okhttp3.Request.Builder()
@@ -665,7 +665,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                                 if (reply.contains("COLUMN:")) {
                                     renderColumn(reply)
                                 } else {
-                                    StateStore.append(this@MainActivity, currentStateId, "assistant", reply); addResearchMessage("GAMA Research", reply, false); runMemoryAgent()
+                                    StateStore.append(this@MainActivity, currentStateId, "assistant", reply); showReplyOrProject(reply); runMemoryAgent()
                                 }
                             }
                         } catch (e: Exception) {
@@ -983,6 +983,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         return """You are GAMA Research — a serious, focused research assistant for $userName. $profileContext
 
 ${factsContext()}
+BUILDING THINGS: When the user asks you to make something visual, a game, a page or a tool, reply with ONE complete self-contained HTML file from <!DOCTYPE html> to </html>. Put CSS and JavaScript inside the file. Never load anything from the internet. Give the page a short <title>. Keep the file compact. After the file, write one short sentence about it.
 YOUR JOB: Help this specific person with their specific situation. Generic answers are a failure. Your job is to understand what they actually need and deliver exactly that.
 
 INTERNET ACCESS: You have real-time web access. Web content will be provided labeled as WEB RESEARCH FOUND. 
@@ -2277,6 +2278,35 @@ $style"""
         root.addView(web)
         dlg.setContentView(root)
         dlg.show()
+    }
+
+    private fun showReplyOrProject(reply: String) {
+        val html = ProjectStore.extractHtml(reply)
+        val lower = reply.lowercase()
+        if (html == null) {
+            if (lower.contains("<!doctype") || lower.contains("<html")) {
+                addResearchMessage("GAMA Research", "The page was cut off before it finished. Ask me to make it smaller or simpler.", false)
+            } else {
+                addResearchMessage("GAMA Research", reply, false)
+            }
+            return
+        }
+        val name = ProjectStore.nameFrom(html)
+        ProjectStore.save(this, name, html)
+        var cut = lower.indexOf("<!doctype")
+        if (cut < 0) cut = lower.indexOf("<html")
+        val before = reply.substring(0, cut).replace("```html", "").replace("```", "").trim()
+        val after = reply.substring(lower.lastIndexOf("</html>") + 7).replace("```", "").trim()
+        val text = (before + " " + after).trim()
+        if (text.isNotEmpty()) addResearchMessage("GAMA Research", text, false)
+        val card = android.widget.TextView(this)
+        card.text = "Open project: " + name
+        card.setTextColor(0xFFFFFFFF.toInt())
+        card.setBackgroundColor(0xFF1A6B3C.toInt())
+        card.setPadding(32, 24, 32, 24)
+        card.setOnClickListener { openProjectViewer(name, html) }
+        researchMessagesContainer.addView(card)
+        researchScrollView.post { researchScrollView.fullScroll(android.view.View.FOCUS_DOWN) }
     }
 
     private fun showProjects() {
