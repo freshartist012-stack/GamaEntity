@@ -493,7 +493,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
             showResearchProfileSetup(text)
             return
         }
-        StateStore.append(this, currentStateId, "user", text); addResearchMessage("You", text, true)
+        StateStore.append(this@MainActivity, currentStateId, "user", text); addResearchMessage("You", text, true)
         executeResearchQuery(text, "")
     }
 
@@ -665,7 +665,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
                                 if (reply.contains("COLUMN:")) {
                                     renderColumn(reply)
                                 } else {
-                                    StateStore.append(this, currentStateId, "assistant", reply); addResearchMessage("GAMA Research", reply, false); runMemoryAgent()
+                                    StateStore.append(this@MainActivity, currentStateId, "assistant", reply); addResearchMessage("GAMA Research", reply, false); runMemoryAgent()
                                 }
                             }
                         } catch (e: Exception) {
