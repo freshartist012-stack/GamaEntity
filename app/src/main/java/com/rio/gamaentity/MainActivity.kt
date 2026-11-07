@@ -629,7 +629,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
 
             val body = JSONObject().apply {
                 put("model", "openai/gpt-oss-120b")
-                put("messages", researchMessages)
+                put("messages", requestMessages())
                 put("max_tokens", if (isBuildRequest(question)) 9000 else 2000); if (isBuildRequest(question)) put("reasoning_effort", "high")
                 put("tool_choice", "none")
             }
@@ -2281,6 +2281,24 @@ $style"""
         dlg.show()
     }
 
+    private var currentProjectId = ""
+
+    private fun requestMessages(): JSONArray {
+        val out = JSONArray()
+        for (i in 0 until researchMessages.length()) out.put(researchMessages.getJSONObject(i))
+        if (currentProjectId.isEmpty() || out.length() == 0) return out
+        val last = out.getJSONObject(out.length() - 1)
+        val q = last.optString("content").lowercase()
+        val editWords = listOf("add", "change", "fix", "make", "move", "remove", "update", "edit", "bug", "color", "colour", "hint", "button", "bigger", "smaller", "project", "game", "page", "wrong", "broken", "not working", "doesnt", "doesn't")
+        if (last.optString("role") != "user" || editWords.none { q.contains(it) }) return out
+        val html = ProjectStore.load(this, currentProjectId) ?: return out
+        val copy = JSONObject()
+        copy.put("role", "user")
+        copy.put("content", last.optString("content") + System.lineSeparator() + System.lineSeparator() + "CURRENT PROJECT FILE:" + System.lineSeparator() + html)
+        out.put(out.length() - 1, copy)
+        return out
+    }
+
     private var lastHadProject = false
 
     private fun isBuildRequest(q: String): Boolean {
@@ -2301,12 +2319,14 @@ $style"""
             return
         }
         lastHadProject = true; val name = ProjectStore.nameFrom(html)
-        ProjectStore.save(this, name, html)
+        currentProjectId = ProjectStore.save(this, name, html)
         var cut = lower.indexOf("<!doctype")
         if (cut < 0) cut = lower.indexOf("<html")
         val before = reply.substring(0, cut).replace("```html", "").replace("```", "").trim()
         val after = reply.substring(lower.lastIndexOf("</html>") + 7).replace("```", "").trim()
         val text = (before + " " + after).trim()
+        val lastIdx = researchMessages.length() - 1
+        if (lastIdx >= 0 && researchMessages.getJSONObject(lastIdx).optString("role") == "assistant") researchMessages.getJSONObject(lastIdx).put("content", "[Built project '" + name + "' and saved it. Code stored outside the chat. " + text + "]")
         if (text.isNotEmpty()) addResearchMessage("GAMA Research", text, false)
         val card = android.widget.TextView(this)
         card.text = "Open project: " + name
@@ -2353,6 +2373,7 @@ $style"""
     }
 
     private fun openState(id: String) {
+        currentProjectId = ""
         currentStateId = id
         currentStateStartTime = System.currentTimeMillis()
         researchMessagesContainer.removeAllViews()
@@ -2364,12 +2385,14 @@ $style"""
             val m = saved.getJSONObject(i)
             val role = m.optString("role")
             val content = m.optString("content")
-            researchMessages.put(JSONObject().apply { put("role", role); put("content", content) })
+            if (role == "assistant") { val h = ProjectStore.extractHtml(content); if (h != null) currentProjectId = ProjectStore.save(this, ProjectStore.nameFrom(h), h) }
+            researchMessages.put(JSONObject().apply { put("role", role); put("content", if (role == "assistant" && ProjectStore.extractHtml(content) != null) "[Built a project earlier in this state. Code stored outside the chat.]" else content) })
             addResearchMessage(if (role == "user") "You" else "GAMA Research", content, role == "user")
         }
     }
 
     private fun startNewState() {
+        currentProjectId = ""
         currentStateId = "state_${System.currentTimeMillis()}"
         currentStateStartTime = System.currentTimeMillis()
         researchMessages = JSONArray()
