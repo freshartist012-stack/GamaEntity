@@ -630,7 +630,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
             val body = JSONObject().apply {
                 put("model", "openai/gpt-oss-120b")
                 put("messages", researchMessages)
-                put("max_tokens", 5000)
+                put("max_tokens", if (isBuildRequest(question)) 9000 else 2000); if (isBuildRequest(question)) put("reasoning_effort", "high")
                 put("tool_choice", "none")
             }
             val request = okhttp3.Request.Builder()
@@ -983,7 +983,7 @@ When writing emails write only the email content. Never add notes, disclaimers, 
         return """You are GAMA Research — a serious, focused research assistant for $userName. $profileContext
 
 ${factsContext()}
-BUILDING THINGS: When the user asks you to make something visual, a game, a page or a tool, reply with ONE complete self-contained HTML file from <!DOCTYPE html> to </html>. Put CSS and JavaScript inside the file. Never load anything from the internet. Give the page a short <title>. Keep the file compact. After the file, write one short sentence about it.
+BUILDING THINGS: When the user asks you to make something visual, a game, a page or a tool, reply with ONE complete self-contained HTML file from <!DOCTYPE html> to </html>. Put CSS and JavaScript inside the file. Never load anything from the internet. Give the page a short <title>. BUILD QUALITY: Before writing, think through the full logic and rules of what you are building. Write complete working code with no placeholders and no TODO. Mentally test the main actions and edge cases before you answer. The page is viewed on a phone in portrait: include a viewport meta tag, size everything with percentages or vw and vh, never use fixed widths over 360px, and use touch and click events, never hover. When asked to change or fix something, return the complete updated file, not a fragment, and keep everything that already worked. After the file, write one short sentence about it.
 YOUR JOB: Help this specific person with their specific situation. Generic answers are a failure. Your job is to understand what they actually need and deliver exactly that.
 
 INTERNET ACCESS: You have real-time web access. Web content will be provided labeled as WEB RESEARCH FOUND. 
@@ -2273,15 +2273,24 @@ $style"""
         val web = android.webkit.WebView(this)
         web.settings.javaScriptEnabled = true
         web.settings.domStorageEnabled = true
-        web.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
+        val shown = if (html.lowercase().contains("viewport")) html else html.replace("<head>", "<head><meta name='viewport' content='width=device-width, initial-scale=1'>", ignoreCase = true)
+        web.loadDataWithBaseURL(null, shown, "text/html", "utf-8", null)
         web.layoutParams = android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
         root.addView(web)
         dlg.setContentView(root)
         dlg.show()
     }
 
+    private var lastHadProject = false
+
+    private fun isBuildRequest(q: String): Boolean {
+        if (lastHadProject) return true
+        val l = q.lowercase()
+        return listOf("make me", "build", "create a", "game", "html", "web page", "webpage", "website").any { l.contains(it) }
+    }
+
     private fun showReplyOrProject(reply: String) {
-        val html = ProjectStore.extractHtml(reply)
+        lastHadProject = false; val html = ProjectStore.extractHtml(reply)
         val lower = reply.lowercase()
         if (html == null) {
             if (lower.contains("<!doctype") || lower.contains("<html")) {
@@ -2291,7 +2300,7 @@ $style"""
             }
             return
         }
-        val name = ProjectStore.nameFrom(html)
+        lastHadProject = true; val name = ProjectStore.nameFrom(html)
         ProjectStore.save(this, name, html)
         var cut = lower.indexOf("<!doctype")
         if (cut < 0) cut = lower.indexOf("<html")
