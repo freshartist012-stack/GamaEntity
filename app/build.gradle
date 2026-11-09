@@ -10,7 +10,7 @@ android {
     defaultConfig {
         minSdk 26
         targetSdk 36
-        versionCode 220
+        versionCode 221
         versionName "1.0"
     }
 
@@ -56,4 +56,5 @@ dependencies {
     implementation 'com.google.android.material:material:1.11.0'
     implementation 'androidx.drawerlayout:drawerlayout:1.2.0'
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    proImplementation 'xyz.rementia:openwakeword:0.1.3'
 }
