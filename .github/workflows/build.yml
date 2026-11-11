@@ -46,3 +46,12 @@ jobs:
         with:
           name: GamaEntity-pro-release
           path: app/build/outputs/apk/pro/release/app-pro-release.apk
+      - name: List VoxRT API
+        run: |
+          f=$(find ~/.gradle -name "voxrt-wake-word-android*.aar" | head -1)
+          echo "AAR: $f"
+          mkdir -p /tmp/vx
+          cd /tmp/vx
+          unzip -oq "$f"
+          unzip -Z1 classes.jar | grep -v '\$' | grep -i voxrt | head -30
+          for c in $(unzip -Z1 classes.jar | grep -v '\$' | grep -i 'engine\|detection' | sed 's/.class$//' | tr '/' '.'); do javap -cp classes.jar "$c"; done | head -60
