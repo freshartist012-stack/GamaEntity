@@ -7,7 +7,7 @@ class ProOverlayService : OverlayService() {
 
     override fun getSystemPromptExtra(): String {
         if (!GamaAccessibilityService.isEnabled) return ""
-        return " [Navigation commands, output only the command: BACK, HOME, MINIMIZE, SCROLL:UP, SCROLL:DOWN, SCROLL:LEFT, SCROLL:RIGHT. One command per reply. Use only when the user asks to navigate.]"
+        return " [Navigation commands, output only the command: BACK, HOME, MINIMIZE, SCROLL:UP, SCROLL:DOWN, SCROLL:LEFT, SCROLL:RIGHT, SKIP_AD. One command per reply. Use only when the user asks to navigate.]"
     }
 
     override fun handleScreenAction(reply: String): Boolean {
@@ -27,6 +27,18 @@ class ProOverlayService : OverlayService() {
                     GamaAccessibilityService.playBestMatch(query, upper.startsWith("SPOTIFY:"))
                 }, 1500)
                 return false
+            }
+        }
+        for (line in reply.lines()) {
+            if (line.trim().uppercase().startsWith("SKIP_AD")) {
+                val r = GamaAccessibilityService.skipAd()
+                val msg = when (r) {
+                    "skipped" -> "Ad skipped"
+                    "notyoutube" -> "Open YouTube or YouTube Music first. No ad to skip here"
+                    else -> "No ad to skip"
+                }
+                Handler(Looper.getMainLooper()).post { responseText.text = msg }
+                return true
             }
         }
         return handleNavigation(reply)

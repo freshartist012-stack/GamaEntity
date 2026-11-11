@@ -196,6 +196,18 @@ class GamaAccessibilityService : AccessibilityService() {
             }.start()
         }
 
+        fun skipAd(): String {
+            val root = targetRoot() ?: return "none"
+            val pkg = root.packageName?.toString() ?: ""
+            if (pkg != "com.google.android.youtube" && pkg != "com.google.android.apps.youtube.music") return "notyoutube"
+            val nodes = root.findAccessibilityNodeInfosByText("Skip") ?: return "noad"
+            val btn = nodes.firstOrNull {
+                val t = labelOf(it).lowercase()
+                it.isVisibleToUser && t.startsWith("skip") && t.length <= 20
+            } ?: return "noad"
+            return if (clickNode(btn)) "skipped" else "noad"
+        }
+
         private fun clickNode(node: AccessibilityNodeInfo): Boolean {
             var cur: AccessibilityNodeInfo? = node
             while (cur != null && !cur.isClickable) cur = cur.parent
