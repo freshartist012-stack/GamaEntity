@@ -2065,6 +2065,8 @@ $style"""
         return java.io.File(dir, "gama_memory.json")
     }
 
+    protected open fun onDrawerRefreshed() {}
+
     private fun refreshDrawer() {
         drawerContent.removeAllViews()
         val btnParams = android.widget.LinearLayout.LayoutParams(
@@ -2136,6 +2138,7 @@ $style"""
                 showProInstaller()
             })
         }
+        onDrawerRefreshed()
     }
 
     private fun showLanguagePicker() {

@@ -28,6 +28,11 @@ class ProMainActivity : MainActivity() {
         addWakeButton()
     }
 
+    override fun onDrawerRefreshed() {
+        addAccessibilityButton()
+        addWakeButton()
+    }
+
     private fun wakeOn(): Boolean = getSharedPreferences("gama_prefs", MODE_PRIVATE).getBoolean("wake_word_on", false)
 
     private fun restoreWake() {
