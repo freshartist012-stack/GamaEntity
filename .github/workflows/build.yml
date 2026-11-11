@@ -55,3 +55,5 @@ jobs:
           unzip -oq "$f"
           unzip -Z1 classes.jar | grep -v '\$' | grep -i voxrt | head -30
           for c in $(unzip -Z1 classes.jar | grep -v '\$' | grep -i 'engine\|detection' | sed 's/.class$//' | tr '/' '.'); do javap -cp classes.jar "$c"; done | head -60
+      - name: List VoxRT Companion
+        run: javap -cp /tmp/vx/classes.jar 'com.voxrt.sdk.wakeword.VoxrtWakeWordEngine$Companion'
