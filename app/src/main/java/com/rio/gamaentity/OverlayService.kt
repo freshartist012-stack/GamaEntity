@@ -248,7 +248,7 @@ open class OverlayService : Service() {
                 true
             }
         }
-        inputRow.addView(walkieBtn)
+        if (BuildConfig.FLAVOR != "free") inputRow.addView(walkieBtn)
         root.addView(inputRow)
 
         overlayParams = WindowManager.LayoutParams(

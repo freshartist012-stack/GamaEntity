@@ -104,6 +104,7 @@ open class MainActivity : AppCompatActivity() {
         sendButton = findViewById(R.id.sendButton)
         micButton = findViewById(R.id.micButton)
         walkieButton = findViewById(R.id.walkieButton)
+        if (BuildConfig.FLAVOR == "free") walkieButton.visibility = android.view.View.GONE
 
         tts = TextToSpeech(this) { status ->
             ttsReady = status == TextToSpeech.SUCCESS
@@ -253,6 +254,49 @@ open class MainActivity : AppCompatActivity() {
         // ASSIST handled by AssistantOverlayActivity
     }
 
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 100) showTutorialIfNeeded()
+    }
+
+    private fun tutorialPages(): List<Pair<String, String>> {
+        val gap = System.lineSeparator() + System.lineSeparator()
+        val pro = BuildConfig.FLAVOR != "free"
+        val voice = mutableListOf(
+            "Mic (tap): normal voice. It uses your phone speech recognition, so it is free and works best in English.",
+            "Voice mode: a back-and-forth conversation. GAMA listens again after every reply."
+        )
+        if (pro) voice.add("Amber walkie-talkie (hold): hold the button, speak, then release. It uses Groq speech, so it has limits, but it works on phones without Google.")
+        val pages = mutableListOf(
+            Pair("Talking to GAMA", voice.joinToString(gap)),
+            Pair("Open GAMA anywhere", "Long-press Home to open GAMA on top of any app. If nothing happens, set GAMA as your digital assistant in your phone Settings. In the overlay you can type, tap the mic" + (if (pro) ", or hold the walkie-talkie button." else ".")),
+            Pair("Two modes", "Chat mode: actions like calls, WhatsApp, alarms and opening apps." + gap + "Research mode (button at the top right): questions, saved states, and projects GAMA builds for you, like games and pages.")
+        )
+        if (pro) pages.add(Pair("GAMA Pro extras", "Screen control: turn on GAMA Pro Assistant in Accessibility settings. Then you can say back, home or scroll." + gap + "Music: GAMA plays the best match in Spotify and YouTube Music." + gap + "WhatsApp: it taps Send after you confirm the message." + gap + "Wake word: open the menu, turn on Wake word, then say Hey Assistant."))
+        return pages
+    }
+
+    private fun showTutorialIfNeeded() {
+        val sp = getSharedPreferences("gama_prefs", MODE_PRIVATE)
+        if (sp.getBoolean("tutorial_seen_v1", false)) return
+        showTutorialPage(0)
+    }
+
+    private fun showTutorialPage(i: Int) {
+        val pages = tutorialPages()
+        val last = i == pages.size - 1
+        val sp = getSharedPreferences("gama_prefs", MODE_PRIVATE)
+        val builder = androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(pages[i].first)
+            .setMessage(pages[i].second)
+            .setCancelable(false)
+            .setPositiveButton(if (last) "Got it" else "Next") { _, _ ->
+                if (last) sp.edit().putBoolean("tutorial_seen_v1", true).apply() else showTutorialPage(i + 1)
+            }
+        if (!last) builder.setNegativeButton("Skip") { _, _ -> sp.edit().putBoolean("tutorial_seen_v1", true).apply() }
+        builder.show()
+    }
+
     private fun checkAndRequestPermissions() {
         val needed = mutableListOf<String>()
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED)
@@ -264,8 +308,7 @@ open class MainActivity : AppCompatActivity() {
             needed.add(Manifest.permission.CALL_PHONE)
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
             needed.add(Manifest.permission.RECORD_AUDIO)
-        if (needed.isNotEmpty())
-            ActivityCompat.requestPermissions(this, needed.toTypedArray(), 100)
+        if (needed.isNotEmpty()) ActivityCompat.requestPermissions(this, needed.toTypedArray(), 100) else showTutorialIfNeeded()
     }
 
     private fun startVoiceInput() {
@@ -1981,19 +2024,25 @@ $style"""
     }
 
 
+    private fun voiceLine(): String {
+        val base = "Voice: the normal mic uses your phone speech recognition (Google), which may send audio to Google to be turned into text. "
+        val walkie = if (BuildConfig.FLAVOR == "free") "" else "If you use the hold-to-talk button, your recording is sent to Groq to be turned into text. "
+        return base + walkie + "GAMA does not store recordings. Your messages and research questions are also sent to Groq to get replies."
+    }
+
     private fun showDataDisclosureIfNeeded() {
         val prefs = getSharedPreferences("gama_prefs", MODE_PRIVATE)
-        if (prefs.getBoolean("data_consent_given", false)) {
+        if (prefs.getBoolean("data_consent_v2", false)) {
             copyDictionaryIfNeeded()
             checkAndRequestPermissions()
             return
         }
         AlertDialog.Builder(this)
             .setTitle("Data Usage Disclosure")
-            .setMessage("GAMA Entity collects and transmits the following data:\n\n• Contact names and phone numbers are sent to Groq (api.groq.com) to enable features like drafting WhatsApp messages and making calls by name.\n• Voice audio is processed locally on your device and is not stored or transmitted.\n\nThis data is used only when you request an action. By tapping Accept, you consent to this data usage.")
+            .setMessage("GAMA Entity collects and transmits the following data:\n\n• Contact names and phone numbers are sent to Groq (api.groq.com) to enable features like drafting WhatsApp messages and making calls by name.\n• " + voiceLine() + "\n\nThis data is used only when you request an action. By tapping Accept, you consent to this data usage.")
             .setCancelable(false)
             .setPositiveButton("Accept") { _, _ ->
-                prefs.edit().putBoolean("data_consent_given", true).apply()
+                prefs.edit().putBoolean("data_consent_v2", true).apply()
                 copyDictionaryIfNeeded()
                 checkAndRequestPermissions()
             }
