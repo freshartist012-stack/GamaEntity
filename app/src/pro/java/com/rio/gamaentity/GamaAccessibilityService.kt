@@ -208,6 +208,52 @@ class GamaAccessibilityService : AccessibilityService() {
             return if (clickNode(btn)) "skipped" else "noad"
         }
 
+        @JvmStatic fun installFromStore(name: String) {
+            Thread {
+                val words = name.lowercase().split(" ").filter { it.length > 1 }
+                if (words.isEmpty()) return@Thread
+                var tries = 0
+                var openedPage = false
+                while (tries < 40) {
+                    Thread.sleep(700)
+                    tries++
+                    val root = targetRoot() ?: continue
+                    if (root.packageName?.toString() != "com.android.vending") continue
+                    val installs = findLabeled(root, "Install")
+                    val opens = findLabeled(root, "Open")
+                    if (openedPage) {
+                        if (installs.size == 1) { clickNode(installs[0]); finishInstall("Installing " + name); return@Thread }
+                        if (installs.isEmpty() && opens.size == 1) { finishInstall(name + " is already installed"); return@Thread }
+                    } else {
+                        val row = bestRow(root, words, name.lowercase().trim())
+                        if (row != null) {
+                            val tokens = rowText(row).lowercase().split(" ")
+                            if (!tokens.contains("sponsored") && !tokens.contains("ad")) {
+                                clickNode(row)
+                                openedPage = true
+                                Thread.sleep(1500)
+                            }
+                        }
+                    }
+                }
+                finishInstall("Could not finish installing " + name)
+            }.start()
+        }
+
+        private fun findLabeled(root: AccessibilityNodeInfo, label: String): List<AccessibilityNodeInfo> {
+            val nodes = root.findAccessibilityNodeInfosByText(label) ?: return emptyList()
+            return nodes.filter { it.isVisibleToUser && labelOf(it).equals(label, ignoreCase = true) }
+        }
+
+        private fun finishInstall(msg: String) {
+            val svc = instance ?: return
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                android.widget.Toast.makeText(svc, msg, android.widget.Toast.LENGTH_LONG).show()
+            }
+            Thread.sleep(2500)
+            returnToLastApp()
+        }
+
         private fun clickNode(node: AccessibilityNodeInfo): Boolean {
             var cur: AccessibilityNodeInfo? = node
             while (cur != null && !cur.isClickable) cur = cur.parent
@@ -267,7 +313,7 @@ class GamaAccessibilityService : AccessibilityService() {
                 0
             )?.activityInfo?.packageName
             if (pkg == launcher) return
-            if (pkg in listOf("com.spotify.music", "com.whatsapp", "com.google.android.apps.youtube.music", "com.google.android.youtube")) return
+            if (pkg in listOf("com.spotify.music", "com.whatsapp", "com.google.android.apps.youtube.music", "com.google.android.youtube", "com.android.vending")) return
             lastApp = pkg
         }
     }

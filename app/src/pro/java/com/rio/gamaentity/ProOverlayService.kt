@@ -7,7 +7,7 @@ class ProOverlayService : OverlayService() {
 
     override fun getSystemPromptExtra(): String {
         if (!GamaAccessibilityService.isEnabled) return ""
-        return " [Navigation commands, output only the command: BACK, HOME, MINIMIZE, SCROLL:UP, SCROLL:DOWN, SCROLL:LEFT, SCROLL:RIGHT, SKIP_AD. One command per reply. Use only when the user asks to navigate.]"
+        return " [Navigation commands, output only the command: BACK, HOME, MINIMIZE, SCROLL:UP, SCROLL:DOWN, SCROLL:LEFT, SCROLL:RIGHT, SKIP_AD. For downloading or installing an app output INSTALL_APP:app name. One command per reply. Use only when the user asks to navigate.]"
     }
 
     override fun handleScreenAction(reply: String): Boolean {
@@ -39,6 +39,22 @@ class ProOverlayService : OverlayService() {
                 }
                 Handler(Looper.getMainLooper()).post { responseText.text = msg }
                 return true
+            }
+        }
+        for (line in reply.lines()) {
+            val t = line.trim()
+            if (t.uppercase().startsWith("INSTALL_APP:")) {
+                val appName = t.substring(12).trim()
+                if (appName.isNotEmpty()) {
+                    taskBusy = true
+                    GamaAccessibilityService.onTaskDone = { Handler(Looper.getMainLooper()).post { resumeAfterTask() } }
+                    Handler(Looper.getMainLooper()).postDelayed({ if (taskBusy) resumeAfterTask() }, 25000)
+                    startActivity(android.content.Intent(this, ProInstallConfirmActivity::class.java).apply {
+                        putExtra("app_name", appName)
+                        addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    })
+                    return true
+                }
             }
         }
         return handleNavigation(reply)

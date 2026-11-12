@@ -12,6 +12,7 @@
         </intent>
     </queries>
     <application tools:ignore="AllowBackup">
+        <activity android:name=".ProInstallConfirmActivity" android:exported="false" android:taskAffinity="" android:excludeFromRecents="true" android:theme="@android:style/Theme.Translucent.NoTitleBar"/>
         <service android:name=".WakeWordService" android:exported="false" android:foregroundServiceType="microphone"/>
         <activity
             android:name=".MainActivity"
