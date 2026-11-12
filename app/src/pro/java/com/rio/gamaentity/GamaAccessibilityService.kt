@@ -232,6 +232,8 @@ class GamaAccessibilityService : AccessibilityService() {
                         if (row != null) {
                             val tokens = rowText(row).lowercase().split(" ")
                             if (!tokens.contains("sponsored") && !tokens.contains("ad")) {
+                                val small = findInSubtree(row, "Install")
+                                if (small != null) { clickNode(small); finishInstall("Installing " + name); return@Thread }
                                 clickNode(row)
                                 openedPage = true
                                 Thread.sleep(1500)
@@ -242,6 +244,17 @@ class GamaAccessibilityService : AccessibilityService() {
                 copyScreenForDebug()
                 finishInstall("Could not finish installing " + name + ". Screen details copied, paste them to me")
             }.start()
+        }
+
+        private fun findInSubtree(n: AccessibilityNodeInfo, label: String, depth: Int = 0): AccessibilityNodeInfo? {
+            if (depth > 8) return null
+            if (n.isVisibleToUser && labelOf(n).equals(label, ignoreCase = true)) return n
+            for (i in 0 until n.childCount) {
+                val ch = n.getChild(i) ?: continue
+                val r = findInSubtree(ch, label, depth + 1)
+                if (r != null) return r
+            }
+            return null
         }
 
         private fun findLabeled(root: AccessibilityNodeInfo, label: String): List<AccessibilityNodeInfo> {
