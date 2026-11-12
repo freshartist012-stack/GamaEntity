@@ -219,10 +219,13 @@ class GamaAccessibilityService : AccessibilityService() {
                     tries++
                     val root = targetRoot() ?: continue
                     if (root.packageName?.toString() != "com.android.vending") continue
-                    val installs = findLabeled(root, "Install")
-                    val opens = findLabeled(root, "Open")
+                    val installs = distinctNodes(findLabeled(root, "Install"))
+                    val opens = distinctNodes(findLabeled(root, "Open"))
                     if (openedPage) {
-                        if (installs.size == 1) { clickNode(installs[0]); finishInstall("Installing " + name); return@Thread }
+                        if (installs.size in 1..2) {
+                            val top = installs.minByOrNull { val r = android.graphics.Rect(); it.getBoundsInScreen(r); r.top }
+                            if (top != null) { clickNode(top); finishInstall("Installing " + name); return@Thread }
+                        }
                         if (installs.isEmpty() && opens.size == 1) { finishInstall(name + " is already installed"); return@Thread }
                     } else {
                         val row = bestRow(root, words, name.lowercase().trim())
@@ -236,13 +239,35 @@ class GamaAccessibilityService : AccessibilityService() {
                         }
                     }
                 }
-                finishInstall("Could not finish installing " + name)
+                copyScreenForDebug()
+                finishInstall("Could not finish installing " + name + ". Screen details copied, paste them to me")
             }.start()
         }
 
         private fun findLabeled(root: AccessibilityNodeInfo, label: String): List<AccessibilityNodeInfo> {
             val nodes = root.findAccessibilityNodeInfosByText(label) ?: return emptyList()
             return nodes.filter { it.isVisibleToUser && labelOf(it).equals(label, ignoreCase = true) }
+        }
+
+        private fun distinctNodes(list: List<AccessibilityNodeInfo>): List<AccessibilityNodeInfo> {
+            val kept = mutableListOf<AccessibilityNodeInfo>()
+            val rects = mutableListOf<Rect>()
+            for (n in list) {
+                val r = Rect()
+                n.getBoundsInScreen(r)
+                if (rects.none { Rect.intersects(it, r) }) { kept.add(n); rects.add(r) }
+            }
+            return kept
+        }
+
+        private fun copyScreenForDebug() {
+            val svc = instance ?: return
+            val dump = elements().joinToString(" | ") { labelOf(it).ifEmpty { "(none)" } + (if (it.isClickable) " [tap]" else "") }.take(1500)
+            val text = "Screen: " + (targetRoot()?.packageName ?: "none") + " :: " + dump
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                val cm = svc.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                cm.setPrimaryClip(android.content.ClipData.newPlainText("gama", text))
+            }
         }
 
         private fun finishInstall(msg: String) {
