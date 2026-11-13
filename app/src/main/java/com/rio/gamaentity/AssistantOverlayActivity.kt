@@ -131,7 +131,42 @@ class AssistantOverlayActivity : Activity() {
         layout.addView(TextView(this).apply { text = "Message:"; textSize = 12f; setPadding(0,12,0,4) })
         layout.addView(msgInput)
 
-        AlertDialog.Builder(this)
+        val statusView = TextView(this).apply { text = "Listening. Say proceed, cancel, or what to change"; textSize = 12f; setPadding(0, 12, 0, 0) }
+        layout.addView(statusView)
+        var dlgRef: AlertDialog? = null
+        var voice: ConfirmVoice? = null
+        fun applyEdit(spoken: String) {
+            statusView.text = "Updating..."
+            val key = getSharedPreferences("gama_prefs", MODE_PRIVATE).getString("groq_key", "") ?: ""
+            ConfirmEdit.editWhatsApp(key, spoken, nameView.text.toString().removePrefix("To: "), msgInput.text.toString()) { c2, m2 ->
+                runOnUiThread {
+                    if (c2.isEmpty() && m2.isEmpty()) {
+                        statusView.text = "Could not apply that. Try again or type it"
+                    } else {
+                        if (m2.isNotEmpty()) msgInput.setText(m2)
+                        if (c2.isNotEmpty()) {
+                            val idx = contacts.indexOfFirst { it.first.lowercase().contains(c2.lowercase()) }
+                            if (idx >= 0) spinner.setSelection(idx) else statusView.text = "No contact named " + c2
+                        }
+                        if (statusView.text.toString() == "Updating...") statusView.text = "Updated. Say proceed, cancel, or change more"
+                    }
+                    voice?.listenAgain()
+                }
+            }
+        }
+        voice = ConfirmVoice(this, { kind, text ->
+            runOnUiThread {
+                when (kind) {
+                    ConfirmVoice.Kind.CONFIRM -> dlgRef?.getButton(AlertDialog.BUTTON_POSITIVE)?.performClick()
+                    ConfirmVoice.Kind.CANCEL -> { dlgRef?.dismiss(); finish() }
+                    ConfirmVoice.Kind.EDIT -> applyEdit(text)
+                }
+            }
+        }, { runOnUiThread { statusView.text = "Tap here to speak" } })
+        statusView.setOnClickListener { statusView.text = "Listening..."; voice?.start() }
+        msgInput.setOnFocusChangeListener { _, focused -> if (focused) { voice?.stop(); statusView.text = "Typing. Tap here to speak again" } }
+
+        dlgRef = AlertDialog.Builder(this)
             .setTitle("Send WhatsApp Message?")
             .setView(layout)
             .setCancelable(false)
@@ -148,6 +183,8 @@ class AssistantOverlayActivity : Activity() {
             }
             .setNegativeButton("Cancel") { _, _ -> finish() }
             .show()
+        dlgRef?.setOnDismissListener { voice?.stop() }
+        voice?.start()
     }
 
     private fun showPleaseCallConfirmation(contactName: String, specifiedNetwork: String) {
