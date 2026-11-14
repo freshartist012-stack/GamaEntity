@@ -233,7 +233,21 @@ class AssistantOverlayActivity : Activity() {
         }
         layout.addView(networkSpinner)
 
-        AlertDialog.Builder(this)
+        val statusView = TextView(this).apply { text = "Listening. Say proceed or cancel"; textSize = 12f; setPadding(0, 12, 0, 0) }
+        layout.addView(statusView)
+        var dlgRef: AlertDialog? = null
+        var voice: ConfirmVoice? = null
+        voice = ConfirmVoice(this, { k, _ ->
+            runOnUiThread {
+                when (k) {
+                    ConfirmVoice.Kind.CONFIRM -> dlgRef?.getButton(android.content.DialogInterface.BUTTON_POSITIVE)?.performClick()
+                    ConfirmVoice.Kind.CANCEL -> { dlgRef?.dismiss(); finish() }
+                    ConfirmVoice.Kind.EDIT -> { statusView.text = "Say proceed or cancel"; voice?.listenAgain() }
+                }
+            }
+        }, { runOnUiThread { statusView.text = "Tap here to speak" } })
+        statusView.setOnClickListener { statusView.text = "Listening..."; voice?.start() }
+        dlgRef = AlertDialog.Builder(this)
             .setTitle("Send Please Call?")
             .setView(layout)
             .setCancelable(false)
@@ -249,6 +263,8 @@ class AssistantOverlayActivity : Activity() {
             }
             .setNegativeButton("Cancel") { _, _ -> finish() }
             .show()
+        dlgRef?.setOnDismissListener { voice?.stop() }
+        voice?.start()
     }
 
     private fun showEmailConfirmation(to: String, subject: String, body: String) {
@@ -331,7 +347,21 @@ class AssistantOverlayActivity : Activity() {
         }
         layout.addView(spinner)
 
-        androidx.appcompat.app.AlertDialog.Builder(this)
+        val statusView = TextView(this).apply { text = "Listening. Say proceed or cancel"; textSize = 12f; setPadding(0, 12, 0, 0) }
+        layout.addView(statusView)
+        var dlgRef: androidx.appcompat.app.AlertDialog? = null
+        var voice: ConfirmVoice? = null
+        voice = ConfirmVoice(this, { k, _ ->
+            runOnUiThread {
+                when (k) {
+                    ConfirmVoice.Kind.CONFIRM -> dlgRef?.getButton(android.content.DialogInterface.BUTTON_POSITIVE)?.performClick()
+                    ConfirmVoice.Kind.CANCEL -> { dlgRef?.dismiss(); finish() }
+                    ConfirmVoice.Kind.EDIT -> { statusView.text = "Say proceed or cancel"; voice?.listenAgain() }
+                }
+            }
+        }, { runOnUiThread { statusView.text = "Tap here to speak" } })
+        statusView.setOnClickListener { statusView.text = "Listening..."; voice?.start() }
+        dlgRef = androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("Make Call?")
             .setView(layout)
             .setCancelable(false)
@@ -342,6 +372,8 @@ class AssistantOverlayActivity : Activity() {
             }
             .setNegativeButton("Cancel") { _, _ -> finish() }
             .show()
+        dlgRef?.setOnDismissListener { voice?.stop() }
+        voice?.start()
     }
 
     private fun lookupContact(nameOrNumber: String): String {
