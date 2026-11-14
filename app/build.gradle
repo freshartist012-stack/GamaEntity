@@ -10,7 +10,7 @@ android {
     defaultConfig {
         minSdk 26
         targetSdk 36
-        versionCode 237
+        versionCode 238
         versionName "1.0"
     }
 
@@ -57,4 +57,5 @@ dependencies {
     implementation 'androidx.drawerlayout:drawerlayout:1.2.0'
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
     proImplementation 'com.github.VoxRT:voxrt-wake-word-android:v0.1.0'
+    proImplementation 'com.google.mediapipe:tasks-vision:0.10.21'
 }
