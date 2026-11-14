@@ -196,20 +196,29 @@ class GamaAccessibilityService : AccessibilityService() {
         @JvmStatic fun sendWhatsApp() {
             Thread {
                 var tries = 0
-                while (tries < 16) {
+                var seen = 0
+                while (tries < 30) {
                     Thread.sleep(500)
                     tries++
                     val root = targetRoot() ?: continue
-                    val nodes = root.findAccessibilityNodeInfosByText("Send")
-                    val btn = nodes?.firstOrNull { it.isVisibleToUser && !it.isEditable }
-                    if (btn != null) {
-                        clickNode(btn)
-                        Thread.sleep(1500)
-                        returnToLastApp()
-                        return@Thread
-                    }
+                    if (root.packageName?.toString()?.startsWith("com.whatsapp") != true) { seen = 0; continue }
+                    seen++
+                    if (seen < 3) continue
+                    val btn = findSendButton(root) ?: continue
+                    if (!clickNode(btn)) continue
+                    Thread.sleep(1500)
+                    returnToLastApp()
+                    return@Thread
                 }
             }.start()
+        }
+
+        private fun findSendButton(root: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+            val nodes = root.findAccessibilityNodeInfosByText("Send") ?: return null
+            return nodes.firstOrNull {
+                val t = labelOf(it).lowercase()
+                it.isVisibleToUser && !it.isEditable && t.startsWith("send") && t.length <= 12
+            }
         }
 
         fun skipAd(): String {
