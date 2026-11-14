@@ -33,6 +33,7 @@ class GamaAccessibilityService : AccessibilityService() {
             intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
             service.startActivity(intent)
             onTaskDone?.invoke()
+            if (reshowAfterSend) android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ reshowIfPending() }, 900)
             onTaskDone = null
         }
 
@@ -175,6 +176,21 @@ class GamaAccessibilityService : AccessibilityService() {
             }
             walk(root, 0)
             return if (bestScore * 100 >= words.size * 60) best else null
+        }
+
+        @Volatile var reshowAfterSend = false
+
+        @JvmStatic fun sendWhatsAppAndReshow() {
+            reshowAfterSend = true
+            sendWhatsApp()
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ reshowIfPending() }, 11000)
+        }
+
+        fun reshowIfPending() {
+            if (!reshowAfterSend) return
+            reshowAfterSend = false
+            val svc = instance ?: return
+            svc.startService(android.content.Intent(svc, ProOverlayService::class.java).apply { action = OverlayService.ACTION_SHOW })
         }
 
         @JvmStatic fun sendWhatsApp() {

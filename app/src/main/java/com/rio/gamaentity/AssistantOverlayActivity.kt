@@ -177,7 +177,7 @@ class AssistantOverlayActivity : Activity() {
                 catch (e: Exception) { startActivity(Intent(Intent.ACTION_VIEW, uri)) }
                 try {
                     val svc = Class.forName("com.rio.gamaentity.GamaAccessibilityService")
-                    svc.getMethod("sendWhatsApp").invoke(null)
+                    svc.getMethod("sendWhatsAppAndReshow").invoke(null); reshowOverlay = false
                 } catch (e: Exception) {}
                 finish()
             }
