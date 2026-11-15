@@ -72,7 +72,7 @@ class GestureService : LifecycleService() {
             val base = BaseOptions.builder().setModelAssetBuffer(buf).build()
             val opts = GestureRecognizer.GestureRecognizerOptions.builder()
                 .setBaseOptions(base)
-                .setRunningMode(RunningMode.IMAGE)
+                .setRunningMode(RunningMode.VIDEO)
                 .setNumHands(1)
                 .setMinHandDetectionConfidence(0.3f)
                 .setMinHandPresenceConfidence(0.3f)
@@ -117,7 +117,7 @@ class GestureService : LifecycleService() {
             val m = Matrix()
             m.postRotate(img.imageInfo.rotationDegrees.toFloat())
             val rot = android.graphics.Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, m, true)
-            val result = recognizer?.recognize(BitmapImageBuilder(rot).build())
+            val result = recognizer?.recognizeForVideo(BitmapImageBuilder(rot).build(), now)
             val name = result?.gestures()?.firstOrNull()?.firstOrNull()?.categoryName() ?: ""
             dbgHand = result?.landmarks()?.isNotEmpty() == true
             dbgName = name
