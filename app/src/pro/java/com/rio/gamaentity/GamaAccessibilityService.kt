@@ -104,10 +104,23 @@ class GamaAccessibilityService : AccessibilityService() {
 
         private fun scrollDir(forward: Boolean): Boolean {
             val root = targetRoot()
-            val sc = if (root == null) null else findScrollable(root)
-            val act = if (forward) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
-            if (sc != null && sc.performAction(act)) return true
+            val want = if (forward) AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_DOWN else AccessibilityNodeInfo.AccessibilityAction.ACTION_SCROLL_UP
+            if (root != null) {
+                val found = mutableListOf<AccessibilityNodeInfo>()
+                collectScrollable(root, want, found, 0)
+                val best = found.maxByOrNull { val r = Rect(); it.getBoundsInScreen(r); r.width().toLong() * r.height() }
+                if (best != null && best.performAction(want.id)) return true
+            }
             return if (forward) swipe(0.5f, 0.75f, 0.5f, 0.25f) else swipe(0.5f, 0.25f, 0.5f, 0.75f)
+        }
+
+        private fun collectScrollable(n: AccessibilityNodeInfo, want: AccessibilityNodeInfo.AccessibilityAction, out: MutableList<AccessibilityNodeInfo>, depth: Int) {
+            if (depth > 25) return
+            if (n.isScrollable && n.actionList.contains(want)) out.add(n)
+            for (i in 0 until n.childCount) {
+                val ch = n.getChild(i) ?: continue
+                collectScrollable(ch, want, out, depth + 1)
+            }
         }
 
         private fun swipe(x1: Float, y1: Float, x2: Float, y2: Float): Boolean {

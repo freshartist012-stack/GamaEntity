@@ -74,6 +74,9 @@ class GestureService : LifecycleService() {
                 .setBaseOptions(base)
                 .setRunningMode(RunningMode.IMAGE)
                 .setNumHands(1)
+                .setMinHandDetectionConfidence(0.3f)
+                .setMinHandPresenceConfidence(0.3f)
+                .setMinTrackingConfidence(0.3f)
                 .build()
             recognizer = GestureRecognizer.createFromOptions(this, opts)
         } catch (e: Exception) {
@@ -92,7 +95,11 @@ class GestureService : LifecycleService() {
                     .build()
                 analysis.setAnalyzer(exec) { img -> analyze(img) }
                 p.unbindAll()
-                p.bindToLifecycle(this, CameraSelector.DEFAULT_FRONT_CAMERA, analysis)
+                val cam = p.bindToLifecycle(this, CameraSelector.DEFAULT_FRONT_CAMERA, analysis)
+                try {
+                    val range = cam.cameraInfo.exposureState.exposureCompensationRange
+                    if (range.upper > 0) cam.cameraControl.setExposureCompensationIndex(maxOf(1, range.upper / 2))
+                } catch (e: Exception) {}
             } catch (e: Exception) {
                 android.util.Log.e("GAMA_GESTURE", "camera failed: " + e.message)
                 stopSelf()
