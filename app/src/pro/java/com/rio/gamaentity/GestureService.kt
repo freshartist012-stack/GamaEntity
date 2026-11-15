@@ -91,6 +91,7 @@ class GestureService : LifecycleService() {
                 provider = p
                 val analysis = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .setTargetResolution(android.util.Size(960, 720))
                     .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                     .build()
                 analysis.setAnalyzer(exec) { img -> analyze(img) }
@@ -138,6 +139,8 @@ class GestureService : LifecycleService() {
         main.post { android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_SHORT).show() }
     }
 
+    private val hits = ArrayList<Pair<Long, String>>()
+
     private fun onGesture(name: String, now: Long) {
         val act = when (name) {
             "Victory" -> "wake"
@@ -146,14 +149,19 @@ class GestureService : LifecycleService() {
             "Thumb_Down" -> "down"
             else -> ""
         }
-        if (act.isEmpty()) { current = ""; firedFor = ""; return }
-        if (act != current) { current = act; heldSince = now; return }
-        if (act == firedFor) return
-        if (now - heldSince < 900) return
+        if (act.isNotEmpty()) hits.add(Pair(now, act))
+        hits.removeAll { now - it.first > 1500 }
+        if (firedFor.isNotEmpty() && hits.none { it.second == firedFor }) firedFor = ""
+        if (hits.isEmpty()) return
+        val best = hits.groupBy { it.second }.maxByOrNull { it.value.size } ?: return
+        if (best.key == firedFor) return
+        if (best.value.size < 4) return
+        if (best.value.last().first - best.value.first().first < 500) return
         if (now - lastAction < 2000) return
-        firedFor = act
+        firedFor = best.key
         lastAction = now
-        main.post { doAction(act) }
+        val chosen = best.key
+        main.post { doAction(chosen) }
     }
 
     private fun doAction(act: String) {
