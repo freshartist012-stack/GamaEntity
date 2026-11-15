@@ -36,6 +36,11 @@ class GestureService : LifecycleService() {
     private var firedFor = ""
     private var lastAction = 0L
     @Volatile private var started = false
+    private var frames = 0
+    private var lastToast = 0L
+    private var lastErr = ""
+    private var dbgHand = false
+    private var dbgName = ""
 
     override fun onBind(intent: Intent): IBinder? {
         super.onBind(intent)
@@ -106,11 +111,24 @@ class GestureService : LifecycleService() {
             val rot = android.graphics.Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, m, true)
             val result = recognizer?.recognize(BitmapImageBuilder(rot).build())
             val name = result?.gestures()?.firstOrNull()?.firstOrNull()?.categoryName() ?: ""
+            dbgHand = result?.landmarks()?.isNotEmpty() == true
+            dbgName = name
             onGesture(name, now)
         } catch (e: Exception) {
+            lastErr = (e.message ?: "error").take(60)
         } finally {
+            frames++
+            debugTick()
             img.close()
         }
+    }
+
+    private fun debugTick() {
+        val now = System.currentTimeMillis()
+        if (now - lastToast < 3000) return
+        lastToast = now
+        val msg = "Gesture debug: frames=" + frames + " hand=" + dbgHand + " gesture=" + dbgName + (if (lastErr.isNotEmpty()) " err=" + lastErr else "")
+        main.post { android.widget.Toast.makeText(this, msg, android.widget.Toast.LENGTH_SHORT).show() }
     }
 
     private fun onGesture(name: String, now: Long) {
