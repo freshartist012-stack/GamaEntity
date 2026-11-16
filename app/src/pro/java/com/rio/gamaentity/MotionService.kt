@@ -157,7 +157,7 @@ class MotionService : LifecycleService() {
                 provider = p
                 val analysis = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                    .setTargetResolution(android.util.Size(960, 720))
+                    .setTargetResolution(android.util.Size(640, 480))
                     .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                     .build()
                 analysis.setAnalyzer(exec) { img -> analyze(img) }
@@ -177,7 +177,7 @@ class MotionService : LifecycleService() {
     private fun analyze(img: ImageProxy) {
         try {
             val now = System.currentTimeMillis()
-            if (now - lastFrame < 60) return
+            if (now - lastFrame < 30) return
             lastFrame = now
             val bmp = img.toBitmap()
             val m = Matrix()
@@ -239,6 +239,7 @@ class MotionService : LifecycleService() {
     private var tapY = 0f
     private var downX = 0f
     private var downY = 0f
+    private var releaseFrames = 0
 
     private fun setDot(color: Int) {
         main.post { (dot?.background as? GradientDrawable)?.setColor(color) }
@@ -250,9 +251,14 @@ class MotionService : LifecycleService() {
         if (!pinching) {
             if (ratio < 0.28f) pinchFrames++ else pinchFrames = 0
             if (pinchFrames >= 2) pinching = true
-        } else if (ratio > 0.42f) {
-            pinching = false
-            pinchFrames = 0
+        } else {
+            val relT = if (joyMode) 0.6f else 0.42f
+            if (ratio > relT) releaseFrames++ else releaseFrames = 0
+            if (releaseFrames >= 3) {
+                pinching = false
+                pinchFrames = 0
+                releaseFrames = 0
+            }
         }
 
         if (pinching && !was) {
@@ -271,14 +277,14 @@ class MotionService : LifecycleService() {
                 joyAnchorY = palmY
                 setDot(0xFF2196F3.toInt())
             }
-            if (joyMode && now - lastJoy > 600) {
+            if (joyMode && now - lastJoy > 450) {
                 val dx = palmX - joyAnchorX
                 val dy = palmY - joyAnchorY
                 val ax = abs(dx)
                 val ay = abs(dy)
                 val big = maxOf(ax, ay)
                 val small = minOf(ax, ay)
-                if (big > 0.08f && small < big * 0.7f) {
+                if (big > 0.06f && small < big * 0.8f) {
                     lastJoy = now
                     val cmd = if (ax > ay) { if (dx > 0) "SCROLL:RIGHT" else "SCROLL:LEFT" } else { if (dy < 0) "SCROLL:DOWN" else "SCROLL:UP" }
                     main.post { GamaAccessibilityService.executeAction(cmd) }
@@ -311,8 +317,10 @@ class MotionService : LifecycleService() {
 
         val tx = ((rawX - 0.15f) / 0.7f).coerceIn(0f, 1f)
         val ty = ((rawY - 0.15f) / 0.7f).coerceIn(0f, 1f)
-        curX += (tx - curX) * 0.55f
-        curY += (ty - curY) * 0.55f
+        val gap = sqrt((tx - curX) * (tx - curX) + (ty - curY) * (ty - curY))
+        val alpha = (0.35f + gap * 9f).coerceIn(0.35f, 0.95f)
+        curX += (tx - curX) * alpha
+        curY += (ty - curY) * alpha
         val px = curX * screenW
         val py = curY * screenH
         posHist.add(Pt(now, px, py))
