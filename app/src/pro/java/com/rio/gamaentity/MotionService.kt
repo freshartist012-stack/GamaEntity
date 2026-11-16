@@ -56,6 +56,8 @@ class MotionService : LifecycleService() {
     private var lastClick = 0L
     private var lastSwipe = 0L
     private var twoFrames = 0
+    private val waveTrail = ArrayList<Pt>()
+    private var lastDir = ""
     private var anchorSet = false
     private var anchorX = 0f
     private var anchorY = 0f
@@ -209,7 +211,8 @@ class MotionService : LifecycleService() {
                 val d2 = sqrt(x2 * x2 + y2 * y2)
                 return if (d2 > 1f) d1 / d2 else 1f
             }
-            val two = reach(8, 6) > 1.3f && reach(12, 10) > 1.3f && reach(16, 14) < 1.15f && reach(20, 18) < 1.15f
+            val open = reach(8, 6) > 1.3f && reach(12, 10) > 1.3f && reach(16, 14) > 1.3f && reach(20, 18) > 1.3f
+            val two = open || (reach(8, 6) > 1.3f && reach(12, 10) > 1.3f && reach(16, 14) < 1.15f && reach(20, 18) < 1.15f)
             onHand(1f - idx.x(), idx.y(), ratio, now, two, 1f - md.x(), md.y())
         } catch (e: Exception) {
         } finally {
@@ -231,28 +234,33 @@ class MotionService : LifecycleService() {
         if (twoFrames >= 2) {
             pinching = false
             pinchFrames = 0
-            trail.clear()
             showDot(curX * screenW, curY * screenH, false)
-            if (!anchorSet) { anchorX = palmX; anchorY = palmY; anchorSet = true; return }
-            if (now - lastSwipe < 500) { anchorX = palmX; anchorY = palmY; return }
-            val tdx = palmX - anchorX
-            val tdy = palmY - anchorY
-            val tax = abs(tdx)
-            val tay = abs(tdy)
-            val tbig = maxOf(tax, tay)
-            val tsmall = minOf(tax, tay)
-            if (tbig > 0.10f && tsmall < tbig * 0.6f) {
+            waveTrail.add(Pt(now, palmX, palmY))
+            waveTrail.removeAll { now - it.t > 350 }
+            if (now - lastSwipe < 450 || waveTrail.size < 3) return
+            val first = waveTrail.first()
+            val wdx = palmX - first.x
+            val wdy = palmY - first.y
+            val wax = abs(wdx)
+            val way = abs(wdy)
+            val wbig = maxOf(wax, way)
+            val wsmall = minOf(wax, way)
+            if (wbig > 0.12f && wsmall < wbig * 0.6f) {
+                val dir = if (wax > way) { if (wdx > 0) "R" else "L" } else { if (wdy < 0) "U" else "D" }
+                val opposite = when (dir) { "R" -> "L"; "L" -> "R"; "U" -> "D"; else -> "U" }
+                if (lastDir == opposite && now - lastSwipe < 800) { waveTrail.clear(); return }
                 lastSwipe = now
-                anchorX = palmX
-                anchorY = palmY
-                val tcmd = if (tax > tay) { if (tdx > 0) "SCROLL:RIGHT" else "SCROLL:LEFT" } else { if (tdy < 0) "SCROLL:DOWN" else "SCROLL:UP" }
-                main.post { GamaAccessibilityService.executeAction(tcmd) }
+                lastDir = dir
+                waveTrail.clear()
+                val wcmd = when (dir) { "R" -> "SCROLL:RIGHT"; "L" -> "SCROLL:LEFT"; "U" -> "SCROLL:DOWN"; else -> "SCROLL:UP" }
+                main.post { GamaAccessibilityService.executeAction(wcmd) }
             }
             return
         }
+        waveTrail.clear()
         if (now - lastSwipe < 900) return
 
-        if (!pinching) {
+        if (false) {
             trail.add(Pt(now, rawX, rawY))
             trail.removeAll { now - it.t > 300 }
             if (trail.size >= 3) {
