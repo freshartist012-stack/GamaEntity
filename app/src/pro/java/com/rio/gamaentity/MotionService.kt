@@ -228,91 +228,96 @@ class MotionService : LifecycleService() {
         }
     }
 
+    private var pinchStart = 0L
+    private var joyMode = false
+    private var joyAnchorX = 0f
+    private var joyAnchorY = 0f
+    private var lastJoy = 0L
+    private var tapPending = false
+    private var tapAt = 0L
+    private var tapX = 0f
+    private var tapY = 0f
+    private var downX = 0f
+    private var downY = 0f
+
+    private fun setDot(color: Int) {
+        main.post { (dot?.background as? GradientDrawable)?.setColor(color) }
+    }
+
     private fun onHand(rawX: Float, rawY: Float, ratio: Float, now: Long, two: Boolean, palmX: Float, palmY: Float) {
         lastSeen = now
-        if (two) twoFrames++ else { twoFrames = 0; anchorSet = false }
-        if (twoFrames >= 2) {
+        val was = pinching
+        if (!pinching) {
+            if (ratio < 0.28f) pinchFrames++ else pinchFrames = 0
+            if (pinchFrames >= 2) pinching = true
+        } else if (ratio > 0.42f) {
             pinching = false
             pinchFrames = 0
-            showDot(curX * screenW, curY * screenH, false)
-            waveTrail.add(Pt(now, palmX, palmY))
-            waveTrail.removeAll { now - it.t > 350 }
-            if (now - lastSwipe < 450 || waveTrail.size < 3) return
-            val first = waveTrail.first()
-            val wdx = palmX - first.x
-            val wdy = palmY - first.y
-            val wax = abs(wdx)
-            val way = abs(wdy)
-            val wbig = maxOf(wax, way)
-            val wsmall = minOf(wax, way)
-            if (wbig > 0.12f && wsmall < wbig * 0.6f) {
-                val dir = if (wax > way) { if (wdx > 0) "R" else "L" } else { if (wdy < 0) "U" else "D" }
-                val opposite = when (dir) { "R" -> "L"; "L" -> "R"; "U" -> "D"; else -> "U" }
-                if (lastDir == opposite && now - lastSwipe < 800) { waveTrail.clear(); return }
-                lastSwipe = now
-                lastDir = dir
-                waveTrail.clear()
-                val wcmd = when (dir) { "R" -> "SCROLL:RIGHT"; "L" -> "SCROLL:LEFT"; "U" -> "SCROLL:DOWN"; else -> "SCROLL:UP" }
-                main.post { GamaAccessibilityService.executeAction(wcmd) }
-            }
-            return
         }
-        waveTrail.clear()
-        if (now - lastSwipe < 900) return
 
-        if (false) {
-            trail.add(Pt(now, rawX, rawY))
-            trail.removeAll { now - it.t > 300 }
-            if (trail.size >= 3) {
-                val first = trail.first()
-                val dx = rawX - first.x
-                val dy = rawY - first.y
-                val dt = now - first.t
+        if (pinching && !was) {
+            pinchStart = now
+            joyMode = false
+            val ref = posHist.firstOrNull { now - it.t <= 450 } ?: posHist.lastOrNull()
+            downX = ref?.x ?: (curX * screenW)
+            downY = ref?.y ?: (curY * screenH)
+        }
+
+        if (pinching) {
+            if (!joyMode && now - pinchStart > 450) {
+                joyMode = true
+                tapPending = false
+                joyAnchorX = palmX
+                joyAnchorY = palmY
+                setDot(0xFF2196F3.toInt())
+            }
+            if (joyMode && now - lastJoy > 600) {
+                val dx = palmX - joyAnchorX
+                val dy = palmY - joyAnchorY
                 val ax = abs(dx)
                 val ay = abs(dy)
                 val big = maxOf(ax, ay)
                 val small = minOf(ax, ay)
-                if (dt >= 120 && big > 0.30f && small < big * 0.5f) {
-                    lastSwipe = now
-                    trail.clear()
+                if (big > 0.08f && small < big * 0.7f) {
+                    lastJoy = now
                     val cmd = if (ax > ay) { if (dx > 0) "SCROLL:RIGHT" else "SCROLL:LEFT" } else { if (dy < 0) "SCROLL:DOWN" else "SCROLL:UP" }
                     main.post { GamaAccessibilityService.executeAction(cmd) }
-                    return
                 }
             }
+            return
         }
 
-        val was = pinching
-        if (!pinching) {
-            if (ratio < 0.18f) pinchFrames++ else pinchFrames = 0
-            if (pinchFrames >= 3) pinching = true
-        } else if (ratio > 0.30f) {
-            pinching = false
-            pinchFrames = 0
-        }
-
-        if (pinching && !was && now - lastClick > 700) {
-            lastClick = now
-            val ref = posHist.firstOrNull { now - it.t <= 450 } ?: posHist.lastOrNull()
-            val px = ref?.x ?: (curX * screenW)
-            val py = ref?.y ?: (curY * screenH)
-            main.post {
-                GamaAccessibilityService.gestureClick(px, py)
-                flashDot()
+        if (was) {
+            setDot(0x88FFB300.toInt())
+            if (!joyMode && now - pinchStart <= 450) {
+                if (tapPending && now - tapAt <= 600) {
+                    tapPending = false
+                    val cx = tapX
+                    val cy = tapY
+                    main.post {
+                        GamaAccessibilityService.gestureClick(cx, cy)
+                        flashDot()
+                    }
+                } else {
+                    tapPending = true
+                    tapAt = now
+                    tapX = downX
+                    tapY = downY
+                }
             }
+            joyMode = false
         }
+        if (tapPending && now - tapAt > 600) tapPending = false
 
-        if (!pinching) {
-            val tx = ((rawX - 0.15f) / 0.7f).coerceIn(0f, 1f)
-            val ty = ((rawY - 0.15f) / 0.7f).coerceIn(0f, 1f)
-            curX += (tx - curX) * 0.55f
-            curY += (ty - curY) * 0.55f
-            val px = curX * screenW
-            val py = curY * screenH
-            posHist.add(Pt(now, px, py))
-            posHist.removeAll { now - it.t > 600 }
-            showDot(px, py, true)
-        }
+        val tx = ((rawX - 0.15f) / 0.7f).coerceIn(0f, 1f)
+        val ty = ((rawY - 0.15f) / 0.7f).coerceIn(0f, 1f)
+        curX += (tx - curX) * 0.55f
+        curY += (ty - curY) * 0.55f
+        val px = curX * screenW
+        val py = curY * screenH
+        posHist.add(Pt(now, px, py))
+        posHist.removeAll { now - it.t > 600 }
+        showDot(px, py, true)
     }
 
     override fun onDestroy() {
