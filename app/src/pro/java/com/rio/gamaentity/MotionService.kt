@@ -55,6 +55,11 @@ class MotionService : LifecycleService() {
     private var pinching = false
     private var lastClick = 0L
     private var lastSwipe = 0L
+    private var twoFrames = 0
+    private var anchorSet = false
+    private var anchorX = 0f
+    private var anchorY = 0f
+    private var pinchFrames = 0
 
     override fun onBind(intent: Intent): IBinder? {
         super.onBind(intent)
@@ -195,7 +200,17 @@ class MotionService : LifecycleService() {
             val handSize = sqrt(sdx * sdx + sdy * sdy)
             val pinchDist = sqrt(pdx * pdx + pdy * pdy)
             val ratio = if (handSize > 1f) pinchDist / handSize else 1f
-            onHand(1f - idx.x(), idx.y(), ratio, now)
+            fun reach(a: Int, b: Int): Float {
+                val x1 = (hand[a].x() - wr.x()) * w
+                val y1 = (hand[a].y() - wr.y()) * h
+                val x2 = (hand[b].x() - wr.x()) * w
+                val y2 = (hand[b].y() - wr.y()) * h
+                val d1 = sqrt(x1 * x1 + y1 * y1)
+                val d2 = sqrt(x2 * x2 + y2 * y2)
+                return if (d2 > 1f) d1 / d2 else 1f
+            }
+            val two = reach(8, 6) > 1.3f && reach(12, 10) > 1.3f && reach(16, 14) < 1.15f && reach(20, 18) < 1.15f
+            onHand(1f - idx.x(), idx.y(), ratio, now, two, 1f - md.x(), md.y())
         } catch (e: Exception) {
         } finally {
             img.close()
@@ -210,8 +225,31 @@ class MotionService : LifecycleService() {
         }
     }
 
-    private fun onHand(rawX: Float, rawY: Float, ratio: Float, now: Long) {
+    private fun onHand(rawX: Float, rawY: Float, ratio: Float, now: Long, two: Boolean, palmX: Float, palmY: Float) {
         lastSeen = now
+        if (two) twoFrames++ else { twoFrames = 0; anchorSet = false }
+        if (twoFrames >= 2) {
+            pinching = false
+            pinchFrames = 0
+            trail.clear()
+            showDot(curX * screenW, curY * screenH, false)
+            if (!anchorSet) { anchorX = palmX; anchorY = palmY; anchorSet = true; return }
+            if (now - lastSwipe < 500) { anchorX = palmX; anchorY = palmY; return }
+            val tdx = palmX - anchorX
+            val tdy = palmY - anchorY
+            val tax = abs(tdx)
+            val tay = abs(tdy)
+            val tbig = maxOf(tax, tay)
+            val tsmall = minOf(tax, tay)
+            if (tbig > 0.10f && tsmall < tbig * 0.6f) {
+                lastSwipe = now
+                anchorX = palmX
+                anchorY = palmY
+                val tcmd = if (tax > tay) { if (tdx > 0) "SCROLL:RIGHT" else "SCROLL:LEFT" } else { if (tdy < 0) "SCROLL:DOWN" else "SCROLL:UP" }
+                main.post { GamaAccessibilityService.executeAction(tcmd) }
+            }
+            return
+        }
         if (now - lastSwipe < 900) return
 
         if (!pinching) {
@@ -237,12 +275,17 @@ class MotionService : LifecycleService() {
         }
 
         val was = pinching
-        if (!pinching && ratio < 0.25f) pinching = true
-        else if (pinching && ratio > 0.35f) pinching = false
+        if (!pinching) {
+            if (ratio < 0.18f) pinchFrames++ else pinchFrames = 0
+            if (pinchFrames >= 3) pinching = true
+        } else if (ratio > 0.30f) {
+            pinching = false
+            pinchFrames = 0
+        }
 
         if (pinching && !was && now - lastClick > 700) {
             lastClick = now
-            val ref = posHist.firstOrNull { now - it.t <= 250 } ?: posHist.lastOrNull()
+            val ref = posHist.firstOrNull { now - it.t <= 450 } ?: posHist.lastOrNull()
             val px = ref?.x ?: (curX * screenW)
             val py = ref?.y ?: (curY * screenH)
             main.post {
@@ -254,8 +297,8 @@ class MotionService : LifecycleService() {
         if (!pinching) {
             val tx = ((rawX - 0.15f) / 0.7f).coerceIn(0f, 1f)
             val ty = ((rawY - 0.15f) / 0.7f).coerceIn(0f, 1f)
-            curX += (tx - curX) * 0.4f
-            curY += (ty - curY) * 0.4f
+            curX += (tx - curX) * 0.55f
+            curY += (ty - curY) * 0.55f
             val px = curX * screenW
             val py = curY * screenH
             posHist.add(Pt(now, px, py))
