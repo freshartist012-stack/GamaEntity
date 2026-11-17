@@ -23,6 +23,10 @@ import com.google.mediapipe.tasks.vision.poselandmarker.PoseLandmarker
 import java.nio.ByteBuffer
 import java.util.concurrent.Executors
 import kotlin.math.abs
+import kotlin.math.sqrt
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.sin
 
 class BodyService : LifecycleService() {
     private class Pt(val t: Long, val x: Float, val y: Float)
@@ -123,44 +127,111 @@ class BodyService : LifecycleService() {
         }
     }
 
+    private val HIGH = 2.2f
+    private val LOW = 0.9f
+    private val DIST = 0.55f
+    private val STRAIGHT = 0.72f
+    private val DOM = 1.6f
+    private val OPP = 1.3f
+    private var hasS = false
+    private var sx = 0f
+    private var sy = 0f
+    private var prevT = 0L
+    private var inStroke = false
+    private var waitRest = false
+    private var strokeStart = 0L
+    private var startX = 0f
+    private var startY = 0f
+    private var pathLen = 0f
+    private var peak = 0f
+    private var lastPeak = 0f
+    private var lastFired = 0L
+    private var lastDirSwipe = ""
+
+    private fun resetStroke() {
+        hasS = false
+        inStroke = false
+        waitRest = false
+    }
+
+    private fun oppositeOf(d: String): String {
+        return when (d) { "R" -> "L"; "L" -> "R"; "U" -> "D"; "D" -> "U"; else -> "" }
+    }
+
     private fun onPose(pose: List<com.google.mediapipe.tasks.components.containers.NormalizedLandmark>, now: Long) {
+        if (now - prevT > 300) resetStroke()
         val ls = pose[11]
         val rs = pose[12]
         val lw = pose[15]
         val rw = pose[16]
-        val sw = abs(ls.x() - rs.x())
-        if (sw < 0.05f) { trail.clear(); return }
+        val sdx = ls.x() - rs.x()
+        val sdy = ls.y() - rs.y()
+        val sw = sqrt(sdx * sdx + sdy * sdy)
+        if (sw < 0.05f) { resetStroke(); return }
+        val ang = atan2(sdy, sdx)
         val shoulderY = (ls.y() + rs.y()) / 2f
-        val limit = shoulderY + 0.5f * sw
+        val limit = shoulderY + 0.9f * sw
         val lUp = lw.y() < limit
         val rUp = rw.y() < limit
-        if (!lUp && !rUp) { trail.clear(); side = 0; return }
+        if (!lUp && !rUp) { resetStroke(); return }
         val useLeft = if (lUp && rUp) lw.y() < rw.y() else lUp
         val s = if (useLeft) 1 else 2
-        if (s != side) { side = s; trail.clear() }
+        if (s != side) { side = s; resetStroke() }
         val w = if (useLeft) lw else rw
-        val px = (1f - w.x()) / sw
-        val py = w.y() / sw
-        trail.add(Pt(now, px, py))
-        trail.removeAll { now - it.t > 400 }
-        if (now - lastSwipe < 500 || trail.size < 3) return
-        val first = trail.first()
-        val dx = px - first.x
-        val dy = py - first.y
+        val sh = if (useLeft) ls else rs
+        val vx = w.x() - sh.x()
+        val vy = w.y() - sh.y()
+        val cs = cos(ang)
+        val sn = sin(ang)
+        val rx = -(vx * cs + vy * sn) / sw
+        val ry = (-vx * sn + vy * cs) / sw
+        if (!hasS) { sx = rx; sy = ry; hasS = true; prevT = now; return }
+        val px = sx
+        val py = sy
+        sx += (rx - sx) * 0.6f
+        sy += (ry - sy) * 0.6f
+        val dt = (now - prevT) / 1000f
+        prevT = now
+        if (dt <= 0f) return
+        val step = sqrt((sx - px) * (sx - px) + (sy - py) * (sy - py))
+        val speed = step / dt
+        if (waitRest) {
+            if (speed < LOW) waitRest = false
+            return
+        }
+        if (!inStroke) {
+            if (speed > HIGH) {
+                inStroke = true
+                strokeStart = now
+                startX = px
+                startY = py
+                pathLen = step
+                peak = speed
+            }
+            return
+        }
+        pathLen += step
+        if (speed > peak) peak = speed
+        if (now - strokeStart > 600 || (speed < LOW && now - strokeStart > 60)) { inStroke = false; return }
+        val dx = sx - startX
+        val dy = sy - startY
         val ax = abs(dx)
         val ay = abs(dy)
-        val big = maxOf(ax, ay)
-        val small = minOf(ax, ay)
-        if (big > 0.8f && small < big * 0.6f) {
-            val dir = if (ax > ay) { if (dx > 0) "R" else "L" } else { if (dy < 0) "U" else "D" }
-            val opposite = when (dir) { "R" -> "L"; "L" -> "R"; "U" -> "D"; else -> "U" }
-            if (lastDir == opposite && now - lastSwipe < 800) { trail.clear(); return }
-            lastSwipe = now
-            lastDir = dir
-            trail.clear()
-            val cmd = when (dir) { "R" -> "SCROLL:RIGHT"; "L" -> "SCROLL:LEFT"; "U" -> "SCROLL:DOWN"; else -> "SCROLL:UP" }
-            main.post { GamaAccessibilityService.executeAction(cmd) }
-        }
+        val net = sqrt(dx * dx + dy * dy)
+        if (net < DIST || pathLen <= 0f || net / pathLen < STRAIGHT) return
+        val horizontal = ax > ay * DOM
+        val vertical = ay > ax * DOM
+        if (!horizontal && !vertical) return
+        val dir = if (horizontal) { if (dx > 0) "R" else "L" } else { if (dy < 0) "U" else "D" }
+        inStroke = false
+        waitRest = true
+        if (now - lastFired < 350) return
+        if (lastDirSwipe.isNotEmpty() && dir == oppositeOf(lastDirSwipe) && now - lastFired < 1000 && peak < lastPeak * OPP) return
+        lastFired = now
+        lastPeak = peak
+        lastDirSwipe = dir
+        val cmd = when (dir) { "R" -> "SCROLL:RIGHT"; "L" -> "SCROLL:LEFT"; "U" -> "SCROLL:DOWN"; else -> "SCROLL:UP" }
+        main.post { GamaAccessibilityService.executeAction(cmd) }
     }
 
     override fun onDestroy() {
