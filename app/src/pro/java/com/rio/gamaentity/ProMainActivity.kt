@@ -28,6 +28,7 @@ class ProMainActivity : MainActivity() {
         addWakeButton()
         addGestureButton()
         addMotionButton()
+        addBodyButton()
     }
 
     override fun onDrawerRefreshed() {
@@ -35,6 +36,7 @@ class ProMainActivity : MainActivity() {
         addWakeButton()
         addGestureButton()
         addMotionButton()
+        addBodyButton()
     }
 
     private fun gestureOn(): Boolean = getSharedPreferences("gama_prefs", MODE_PRIVATE).getBoolean("gestures_on", false)
@@ -92,6 +94,9 @@ class ProMainActivity : MainActivity() {
         p.edit().putBoolean("gestures_on", false).apply()
         stopService(Intent(this, GestureService::class.java))
         addGestureButton()
+        p.edit().putBoolean("body_on", false).apply()
+        stopService(Intent(this, BodyService::class.java))
+        addBodyButton()
         android.widget.Toast.makeText(this, "Getting hand model...", android.widget.Toast.LENGTH_SHORT).show()
         GestureModel.download(this) { ok, err ->
             runOnUiThread {
@@ -107,8 +112,74 @@ class ProMainActivity : MainActivity() {
         }
     }
 
+    private fun bodyOn(): Boolean = getSharedPreferences("gama_prefs", MODE_PRIVATE).getBoolean("body_on", false)
+
+    private fun restoreBody() {
+        if (bodyOn() && BodyModel.ready(this) && checkSelfPermission(android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            try { androidx.core.content.ContextCompat.startForegroundService(this, Intent(this, BodyService::class.java)) } catch (e: Exception) {}
+        }
+    }
+
+    private fun addBodyButton() {
+        val label = if (bodyOn()) "Body mode: ON" else "Body mode: OFF"
+        val color = if (bodyOn()) 0xFF1A6B3C.toInt() else 0xFF2E5090.toInt()
+        val existing = drawerContent.findViewWithTag<Button>("body_btn")
+        if (existing != null) {
+            existing.text = label
+            existing.setBackgroundColor(color)
+            return
+        }
+        val btn = Button(this).apply {
+            tag = "body_btn"
+            text = label
+            setBackgroundColor(color)
+            setTextColor(0xFFFFFFFF.toInt())
+            layoutParams = android.widget.LinearLayout.LayoutParams(android.widget.LinearLayout.LayoutParams.MATCH_PARENT, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 4, 0, 4) }
+            setOnClickListener { toggleBody() }
+        }
+        drawerContent.addView(btn)
+    }
+
+    private fun toggleBody() {
+        val p = getSharedPreferences("gama_prefs", MODE_PRIVATE)
+        if (bodyOn()) {
+            p.edit().putBoolean("body_on", false).apply()
+            stopService(Intent(this, BodyService::class.java))
+            android.widget.Toast.makeText(this, "Body mode off", android.widget.Toast.LENGTH_SHORT).show()
+            addBodyButton()
+            return
+        }
+        val need = mutableListOf<String>()
+        if (checkSelfPermission(android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED) need.add(android.Manifest.permission.CAMERA)
+        if (android.os.Build.VERSION.SDK_INT >= 33 && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) need.add(android.Manifest.permission.POST_NOTIFICATIONS)
+        if (need.isNotEmpty()) {
+            requestPermissions(need.toTypedArray(), 413)
+            android.widget.Toast.makeText(this, "Allow the permissions, then tap again", android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
+        p.edit().putBoolean("gestures_on", false).putBoolean("motion_on", false).apply()
+        stopService(Intent(this, GestureService::class.java))
+        stopService(Intent(this, MotionService::class.java))
+        addGestureButton()
+        addMotionButton()
+        android.widget.Toast.makeText(this, "Getting body model...", android.widget.Toast.LENGTH_SHORT).show()
+        BodyModel.download(this) { ok, err ->
+            runOnUiThread {
+                if (ok) {
+                    p.edit().putBoolean("body_on", true).apply()
+                    androidx.core.content.ContextCompat.startForegroundService(this, Intent(this, BodyService::class.java))
+                    android.widget.Toast.makeText(this, "Body mode on. Prop the phone so it sees your upper body", android.widget.Toast.LENGTH_LONG).show()
+                } else {
+                    android.widget.Toast.makeText(this, err ?: "Download failed", android.widget.Toast.LENGTH_LONG).show()
+                }
+                addBodyButton()
+            }
+        }
+    }
+
     private fun restoreGestures() {
         restoreMotion()
+        restoreBody()
         if (gestureOn() && GestureModel.ready(this) && checkSelfPermission(android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
             try { androidx.core.content.ContextCompat.startForegroundService(this, Intent(this, GestureService::class.java)) } catch (e: Exception) {}
         }
@@ -154,6 +225,9 @@ class ProMainActivity : MainActivity() {
         p.edit().putBoolean("motion_on", false).apply()
         stopService(Intent(this, MotionService::class.java))
         addMotionButton()
+        p.edit().putBoolean("body_on", false).apply()
+        stopService(Intent(this, BodyService::class.java))
+        addBodyButton()
         android.widget.Toast.makeText(this, "Getting gesture model...", android.widget.Toast.LENGTH_SHORT).show()
         GestureModel.download(this) { ok, err ->
             runOnUiThread {
@@ -220,6 +294,7 @@ class ProMainActivity : MainActivity() {
         addWakeButton()
         addGestureButton()
         addMotionButton()
+        addBodyButton()
     }
 
     private fun addAccessibilityButton() {
