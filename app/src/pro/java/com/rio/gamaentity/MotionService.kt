@@ -200,7 +200,8 @@ class MotionService : LifecycleService() {
             val sdx = (wr.x() - md.x()) * w
             val sdy = (wr.y() - md.y()) * h
             val handSize = sqrt(sdx * sdx + sdy * sdy)
-            val pinchDist = sqrt(pdx * pdx + pdy * pdy)
+            val pdz = (idx.z() - th.z()) * w
+            val pinchDist = sqrt(pdx * pdx + pdy * pdy + pdz * pdz)
             val ratio = if (handSize > 1f) pinchDist / handSize else 1f
             fun reach(a: Int, b: Int): Float {
                 val x1 = (hand[a].x() - wr.x()) * w
@@ -221,6 +222,7 @@ class MotionService : LifecycleService() {
     }
 
     private fun onNoHand(now: Long) {
+        if (now - lastSeen > 250) { pinching = false; pinchFrames = 0; releaseFrames = 0; joyMode = false; tapPending = false; armed = false; openFrames = 0; setDot(0x88FFB300.toInt()) }
         if (now - lastSeen > 600) {
             showDot(curX * screenW, curY * screenH, false)
             trail.clear()
@@ -245,16 +247,29 @@ class MotionService : LifecycleService() {
         main.post { (dot?.background as? GradientDrawable)?.setColor(color) }
     }
 
+    private var armed = true
+    private var openFrames = 0
+
     private fun onHand(rawX: Float, rawY: Float, ratio: Float, now: Long, two: Boolean, palmX: Float, palmY: Float) {
         lastSeen = now
         val was = pinching
-        if (!pinching) {
-            if (ratio < 0.28f) pinchFrames++ else pinchFrames = 0
-            if (pinchFrames >= 2) pinching = true
+        if (ratio > 0.40f) {
+            openFrames++
+            if (openFrames >= 2) armed = true
         } else {
-            val relT = if (joyMode) 0.6f else 0.42f
+            openFrames = 0
+        }
+        if (!pinching) {
+            if (armed && ratio < 0.28f) pinchFrames++ else pinchFrames = 0
+            if (pinchFrames >= 2) {
+                pinching = true
+                armed = false
+                releaseFrames = 0
+            }
+        } else {
+            val relT = if (joyMode) 0.55f else 0.42f
             if (ratio > relT) releaseFrames++ else releaseFrames = 0
-            if (releaseFrames >= 3) {
+            if (releaseFrames >= 3 || now - pinchStart > 8000) {
                 pinching = false
                 pinchFrames = 0
                 releaseFrames = 0
