@@ -89,7 +89,10 @@ open class OverlayService : Service() {
     private lateinit var overlayParams: WindowManager.LayoutParams
 
     private fun showOverlay() {
-        if (overlayView != null) return
+        if (overlayView != null) {
+            if (System.currentTimeMillis() - lastListen > 1500) handler.post { startListening() }
+            return
+        }
         if (!Settings.canDrawOverlays(this)) return
 
         val root = LinearLayout(this).apply {
@@ -317,6 +320,7 @@ open class OverlayService : Service() {
     }
 
     @Volatile protected var taskBusy = false
+    @Volatile protected var lastListen = 0L
     private var walkieRec: WhisperRecorder? = null
     private var walkiePulse: android.animation.ObjectAnimator? = null
 
@@ -327,6 +331,7 @@ open class OverlayService : Service() {
 
     protected open fun startListening() {
         if (taskBusy) return
+        lastListen = System.currentTimeMillis()
         if (!isActive || !voiceEnabled) return
         handler.post {
             responseText.text = "Listening..."

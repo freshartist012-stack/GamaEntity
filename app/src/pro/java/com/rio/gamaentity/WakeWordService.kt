@@ -71,7 +71,7 @@ class WakeWordService : Service() {
         running = false
         engine?.reset()
         startService(Intent(this, ProOverlayService::class.java).apply { action = OverlayService.ACTION_SHOW })
-        Handler(Looper.getMainLooper()).postDelayed({ if (alive && !running) startListening() }, 15000)
+        Handler(Looper.getMainLooper()).postDelayed({ if (alive && !running) startListening() }, 6000)
     }
 
     override fun onDestroy() {

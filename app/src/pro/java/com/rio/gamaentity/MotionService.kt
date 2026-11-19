@@ -62,6 +62,9 @@ class MotionService : LifecycleService() {
     private var anchorX = 0f
     private var anchorY = 0f
     private var pinchFrames = 0
+    private var lastHandSize = 0f
+    private var lastCx = 0.5f
+    private var lastCy = 0.5f
 
     override fun onBind(intent: Intent): IBinder? {
         super.onBind(intent)
@@ -157,7 +160,7 @@ class MotionService : LifecycleService() {
                 provider = p
                 val analysis = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                    .setTargetResolution(android.util.Size(640, 480))
+                    .setTargetResolution(android.util.Size(960, 720))
                     .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                     .build()
                 analysis.setAnalyzer(exec) { img -> analyze(img) }
@@ -183,9 +186,30 @@ class MotionService : LifecycleService() {
             val m = Matrix()
             m.postRotate(img.imageInfo.rotationDegrees.toFloat())
             val rot = android.graphics.Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, m, true)
-            val result = recognizer?.recognizeForVideo(BitmapImageBuilder(rot).build(), now)
+            val full = rot
+            val useCrop = lastHandSize > 0.01f && lastHandSize < 0.14f
+            var offX = 0f
+            var offY = 0f
+            var sclX = 1f
+            var sclY = 1f
+            val feed: android.graphics.Bitmap
+            if (useCrop) {
+                val side = maxOf(160, (lastHandSize * 3.4f * full.width).toInt()).coerceAtMost(minOf(full.width, full.height))
+                val left = ((lastCx * full.width) - side / 2f).toInt().coerceIn(0, full.width - side)
+                val top = ((lastCy * full.height) - side / 2f).toInt().coerceIn(0, full.height - side)
+                feed = android.graphics.Bitmap.createBitmap(full, left, top, side, side)
+                offX = left.toFloat() / full.width
+                offY = top.toFloat() / full.height
+                sclX = side.toFloat() / full.width
+                sclY = side.toFloat() / full.height
+            } else {
+                val sc = 640f / maxOf(full.width, full.height)
+                feed = if (sc < 1f) android.graphics.Bitmap.createScaledBitmap(full, (full.width * sc).toInt(), (full.height * sc).toInt(), true) else full
+            }
+            val result = recognizer?.recognizeForVideo(BitmapImageBuilder(feed).build(), now)
             val hand = result?.landmarks()?.firstOrNull()
             if (hand == null || hand.size < 21) {
+                lastHandSize = 0f
                 onNoHand(now)
                 return
             }
@@ -193,8 +217,21 @@ class MotionService : LifecycleService() {
             val th = hand[4]
             val wr = hand[0]
             val md = hand[9]
-            val w = rot.width.toFloat()
-            val h = rot.height.toFloat()
+            var minX = 1f
+            var maxX = 0f
+            var minY = 1f
+            var maxY = 0f
+            for (lp in hand) {
+                if (lp.x() < minX) minX = lp.x()
+                if (lp.x() > maxX) maxX = lp.x()
+                if (lp.y() < minY) minY = lp.y()
+                if (lp.y() > maxY) maxY = lp.y()
+            }
+            lastHandSize = (maxX - minX) * sclX
+            lastCx = offX + ((minX + maxX) / 2f) * sclX
+            lastCy = offY + ((minY + maxY) / 2f) * sclY
+            val w = feed.width.toFloat()
+            val h = feed.height.toFloat()
             val pdx = (idx.x() - th.x()) * w
             val pdy = (idx.y() - th.y()) * h
             val sdx = (wr.x() - md.x()) * w
@@ -214,7 +251,7 @@ class MotionService : LifecycleService() {
             }
             val open = reach(8, 6) > 1.3f && reach(12, 10) > 1.3f && reach(16, 14) > 1.3f && reach(20, 18) > 1.3f
             val two = open || (reach(8, 6) > 1.3f && reach(12, 10) > 1.3f && reach(16, 14) < 1.15f && reach(20, 18) < 1.15f)
-            onHand(1f - idx.x(), idx.y(), ratio, now, two, 1f - md.x(), md.y())
+            onHand(1f - (offX + idx.x() * sclX), offY + idx.y() * sclY, ratio, now, false, 1f - (offX + md.x() * sclX), offY + md.y() * sclY)
         } catch (e: Exception) {
         } finally {
             img.close()
@@ -253,23 +290,18 @@ class MotionService : LifecycleService() {
     private fun onHand(rawX: Float, rawY: Float, ratio: Float, now: Long, two: Boolean, palmX: Float, palmY: Float) {
         lastSeen = now
         val was = pinching
-        if (ratio > 0.40f) {
-            openFrames++
-            if (openFrames >= 2) armed = true
-        } else {
-            openFrames = 0
-        }
+        if (ratio > 0.34f) armed = true
         if (!pinching) {
-            if (armed && ratio < 0.28f) pinchFrames++ else pinchFrames = 0
-            if (pinchFrames >= 2) {
+            if (armed && ratio < 0.30f) pinchFrames++ else pinchFrames = 0
+            if (pinchFrames >= (if (ratio < 0.2f) 1 else 2)) {
                 pinching = true
                 armed = false
                 releaseFrames = 0
             }
         } else {
-            val relT = if (joyMode) 0.55f else 0.42f
+            val relT = if (joyMode) 0.55f else 0.38f
             if (ratio > relT) releaseFrames++ else releaseFrames = 0
-            if (releaseFrames >= 3 || now - pinchStart > 8000) {
+            if (releaseFrames >= (if (joyMode) 3 else 2) || now - pinchStart > 8000) {
                 pinching = false
                 pinchFrames = 0
                 releaseFrames = 0
