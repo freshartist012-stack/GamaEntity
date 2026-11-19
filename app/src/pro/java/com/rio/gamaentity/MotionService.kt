@@ -141,7 +141,7 @@ class MotionService : LifecycleService() {
             val opts = GestureRecognizer.GestureRecognizerOptions.builder()
                 .setBaseOptions(base)
                 .setRunningMode(RunningMode.VIDEO)
-                .setNumHands(1)
+                .setNumHands(2)
                 .setMinHandDetectionConfidence(0.3f)
                 .setMinHandPresenceConfidence(0.3f)
                 .setMinTrackingConfidence(0.3f)
@@ -187,7 +187,7 @@ class MotionService : LifecycleService() {
             m.postRotate(img.imageInfo.rotationDegrees.toFloat())
             val rot = android.graphics.Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, m, true)
             val full = rot
-            val useCrop = lastHandSize > 0.01f && lastHandSize < 0.14f
+            val useCrop = lastHandSize > 0.01f && lastHandSize < 0.14f && now - lastSecond > 1500
             var offX = 0f
             var offY = 0f
             var sclX = 1f
@@ -207,7 +207,20 @@ class MotionService : LifecycleService() {
                 feed = if (sc < 1f) android.graphics.Bitmap.createScaledBitmap(full, (full.width * sc).toInt(), (full.height * sc).toInt(), true) else full
             }
             val result = recognizer?.recognizeForVideo(BitmapImageBuilder(feed).build(), now)
-            val hand = result?.landmarks()?.firstOrNull()
+            val hands = result?.landmarks() ?: emptyList()
+            var bi = 0
+            if (hands.size >= 2 && now - lastSeen < 600) {
+                var bd = Float.MAX_VALUE
+                for (k in hands.indices) {
+                    if (hands[k].size < 21) continue
+                    val tx0 = offX + hands[k][8].x() * sclX
+                    val ty0 = offY + hands[k][8].y() * sclY
+                    val dd = (tx0 - lastTipX) * (tx0 - lastTipX) + (ty0 - lastTipY) * (ty0 - lastTipY)
+                    if (dd < bd) { bd = dd; bi = k }
+                }
+            }
+            val hand = hands.getOrNull(bi)
+            val other = if (hands.size >= 2) hands[if (bi == 0) 1 else 0] else null
             if (hand == null || hand.size < 21) {
                 lastHandSize = 0f
                 onNoHand(now)
@@ -251,10 +264,60 @@ class MotionService : LifecycleService() {
             }
             val open = reach(8, 6) > 1.3f && reach(12, 10) > 1.3f && reach(16, 14) > 1.3f && reach(20, 18) > 1.3f
             val two = open || (reach(8, 6) > 1.3f && reach(12, 10) > 1.3f && reach(16, 14) < 1.15f && reach(20, 18) < 1.15f)
+            lastTipX = offX + idx.x() * sclX
+            lastTipY = offY + idx.y() * sclY
+            if (other != null && other.size >= 21) {
+                lastSecond = now
+                val ox = (other[8].x() - other[4].x()) * w
+                val oy = (other[8].y() - other[4].y()) * h
+                val oz = (other[8].z() - other[4].z()) * w
+                val osx = (other[0].x() - other[9].x()) * w
+                val osy = (other[0].y() - other[9].y()) * h
+                val osize = sqrt(osx * osx + osy * osy)
+                val oratio = if (osize > 1f) sqrt(ox * ox + oy * oy + oz * oz) / osize else 1f
+                onSecondHand(oratio, now)
+            } else if (now - lastSecond > 300) {
+                secondPinch = false
+                secondFrames = 0
+            }
             onHand(1f - (offX + idx.x() * sclX), offY + idx.y() * sclY, ratio, now, false, 1f - (offX + md.x() * sclX), offY + md.y() * sclY)
         } catch (e: Exception) {
         } finally {
             img.close()
+        }
+    }
+
+    private var lastTipX = 0.5f
+    private var lastTipY = 0.5f
+    private var lastSecond = 0L
+    private var secondPinch = false
+    private var secondFrames = 0
+    private var secondRel = 0
+    private var lastSecondClick = 0L
+
+    private fun onSecondHand(ratio: Float, now: Long) {
+        if (!secondPinch) {
+            if (ratio < 0.30f) secondFrames++ else secondFrames = 0
+            if (secondFrames >= 2) {
+                secondPinch = true
+                secondRel = 0
+                if (now - lastSecondClick > 450 && !pinching) {
+                    lastSecondClick = now
+                    val ref = posHist.lastOrNull()
+                    val cx = ref?.x ?: (curX * screenW)
+                    val cy = ref?.y ?: (curY * screenH)
+                    main.post {
+                        GamaAccessibilityService.gestureClick(cx, cy)
+                        flashDot()
+                    }
+                }
+            }
+        } else {
+            if (ratio > 0.40f) secondRel++ else secondRel = 0
+            if (secondRel >= 2) {
+                secondPinch = false
+                secondFrames = 0
+            }
         }
     }
 
