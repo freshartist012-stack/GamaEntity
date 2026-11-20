@@ -320,12 +320,14 @@ open class OverlayService : Service() {
     }
 
     @Volatile protected var taskBusy = false
+    protected open fun relistenAfterCommand(): Boolean = true
     @Volatile protected var lastListen = 0L
     private var walkieRec: WhisperRecorder? = null
     private var walkiePulse: android.animation.ObjectAnimator? = null
 
     fun resumeAfterTask() {
         taskBusy = false
+        if (!relistenAfterCommand()) return
         handler.postDelayed({ if (isActive && voiceEnabled) startListening() }, 600)
     }
 
@@ -411,14 +413,14 @@ Never use contact names in commands, always use their number.""")
                                 tts?.speak(speakText, TextToSpeech.QUEUE_FLUSH, null, "done")
                                 tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                                     override fun onStart(u: String?) {}
-                                    override fun onDone(u: String?) { handler.postDelayed({ if (isActive && voiceEnabled) startListening() }, 400) }
-                                    override fun onError(u: String?) { handler.post { if (isActive && voiceEnabled) startListening() } }
+                                    override fun onDone(u: String?) { handler.postDelayed({ if (isActive && voiceEnabled && !(hasCommand && !relistenAfterCommand())) startListening() }, 400) }
+                                    override fun onError(u: String?) { handler.post { if (isActive && voiceEnabled && !(hasCommand && !relistenAfterCommand())) startListening() } }
                                 })
                             } else {
-                                handler.postDelayed({ if (isActive && voiceEnabled) startListening() }, 800)
+                                handler.postDelayed({ if (isActive && voiceEnabled && !(hasCommand && !relistenAfterCommand())) startListening() }, 800)
                             }
                         } else {
-                            handler.postDelayed({ if (isActive && voiceEnabled) startListening() }, 800)
+                            handler.postDelayed({ if (isActive && voiceEnabled && !(hasCommand && !relistenAfterCommand())) startListening() }, 800)
                         }
                     } catch (e: Exception) {
                         responseText.text = "Error"

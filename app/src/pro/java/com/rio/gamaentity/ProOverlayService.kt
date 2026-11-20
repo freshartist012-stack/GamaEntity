@@ -4,6 +4,7 @@ import android.os.Handler
 import android.os.Looper
 
 class ProOverlayService : OverlayService() {
+    override fun relistenAfterCommand(): Boolean = false
 
     override fun getSystemPromptExtra(): String {
         if (!GamaAccessibilityService.isEnabled) return ""
