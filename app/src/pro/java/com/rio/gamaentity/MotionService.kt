@@ -141,7 +141,7 @@ class MotionService : LifecycleService() {
             val opts = GestureRecognizer.GestureRecognizerOptions.builder()
                 .setBaseOptions(base)
                 .setRunningMode(RunningMode.VIDEO)
-                .setNumHands(2)
+                .setNumHands(1)
                 .setMinHandDetectionConfidence(0.3f)
                 .setMinHandPresenceConfidence(0.3f)
                 .setMinTrackingConfidence(0.3f)
@@ -280,6 +280,24 @@ class MotionService : LifecycleService() {
                 secondPinch = false
                 secondFrames = 0
             }
+            val gname = result?.gestures()?.firstOrNull()?.firstOrNull()?.categoryName() ?: ""
+            if (gname == "Closed_Fist" && !pinching) {
+                fistFrames++
+                if (fistFrames >= 2 && !fistDown && now - lastFistClick > 700) {
+                    fistDown = true
+                    lastFistClick = now
+                    val ref = posHist.firstOrNull { now - it.t <= 500 } ?: posHist.lastOrNull()
+                    val fx = ref?.x ?: (curX * screenW)
+                    val fy = ref?.y ?: (curY * screenH)
+                    main.post {
+                        GamaAccessibilityService.gestureClick(fx, fy)
+                        flashDot()
+                    }
+                }
+                return
+            }
+            fistFrames = 0
+            fistDown = false
             onHand(1f - (offX + idx.x() * sclX), offY + idx.y() * sclY, ratio, now, false, 1f - (offX + md.x() * sclX), offY + md.y() * sclY)
         } catch (e: Exception) {
         } finally {
@@ -290,6 +308,9 @@ class MotionService : LifecycleService() {
     private var lastTipX = 0.5f
     private var lastTipY = 0.5f
     private var lastSecond = 0L
+    private var fistFrames = 0
+    private var fistDown = false
+    private var lastFistClick = 0L
     private var secondPinch = false
     private var secondFrames = 0
     private var secondRel = 0
